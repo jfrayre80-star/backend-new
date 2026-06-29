@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -23,6 +23,38 @@ export class UsersService {
     @InjectRepository(Parents) private readonly parentsRepo: Repository<Parents>,
     @InjectRepository(Students) private readonly studentsRepo: Repository<Students>,
   ) {}
+
+  async login(identifier: string, password: string) {
+    let user = await this.usersRepo.findOne({ where: { email: identifier, isActive: true } });
+    if (!user) {
+      const student = await this.studentsRepo.findOne({
+        where: { enrollmentNumber: identifier },
+        relations: { user: true },
+      });
+      user = student?.user ?? null;
+    }
+    if (!user) {
+      const teacher = await this.teachersRepo.findOne({
+        where: { employeeCode: identifier },
+        relations: { user: true },
+      });
+      user = teacher?.user ?? null;
+    }
+    if (!user) {
+      const admin = await this.adminsRepo.findOne({
+        where: { employeeCode: identifier },
+        relations: { user: true },
+      });
+      user = admin?.user ?? null;
+    }
+    if (!user || !user.isActive) throw new UnauthorizedException('Credenciales inválidas');
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('Credenciales inválidas');
+    user.lastLogin = new Date();
+    await this.usersRepo.save(user);
+    const { passwordHash, ...profile } = user;
+    return profile;
+  }
 
   private async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, 10);
