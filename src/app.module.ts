@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { allEntities } from './entity-loader';
 import { UsersModule } from './users/users.module';
+import { SubjectsModule } from './subjects/subjects.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module';
       logging: ['error', 'warn'],
     }),
     UsersModule,
+    SubjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
