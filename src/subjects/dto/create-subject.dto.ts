@@ -34,19 +34,6 @@ export class CreateSubjectDto {
   credits?: number;
 
   @IsOptional()
-  @IsUUID()
+  @IsInt()
   specialtyId?: string;
-  if (specialtyId !== undefined) {
-  const specialty = await this.specialtyRepository.findOne({
-    where: { id: specialtyId },
-  });
-
-  if (!specialty) {
-    throw new NotFoundException(
-      'La especialidad no existe.',
-    );
-  }
-
-  subject.specialty = specialty;
-}
 }
