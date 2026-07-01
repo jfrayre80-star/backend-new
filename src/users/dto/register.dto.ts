@@ -2,7 +2,7 @@ import { IsEmail, IsString, IsOptional, MinLength } from 'class-validator';
 
 export class RegisterAdminDto {
   @IsEmail() email: string;
-  @IsString() @MinLength(6) passwordHash: string;
+  @IsString() @MinLength(6) password: string;
   @IsString() firstName: string;
   @IsString() lastName: string;
   @IsOptional() @IsString() phone?: string;
@@ -12,7 +12,7 @@ export class RegisterAdminDto {
 
 export class RegisterTeacherDto {
   @IsEmail() email: string;
-  @IsString() @MinLength(6) passwordHash: string;
+  @IsString() @MinLength(6) password: string;
   @IsString() firstName: string;
   @IsString() lastName: string;
   @IsOptional() @IsString() phone?: string;
@@ -22,7 +22,7 @@ export class RegisterTeacherDto {
 
 export class RegisterParentDto {
   @IsEmail() email: string;
-  @IsString() @MinLength(6) passwordHash: string;
+  @IsString() @MinLength(6) password: string;
   @IsString() firstName: string;
   @IsString() lastName: string;
   @IsOptional() @IsString() phone?: string;
@@ -33,18 +33,22 @@ export class RegisterParentDto {
 
 export class RegisterStudentDto {
   @IsEmail() email: string;
-  @IsString() @MinLength(6) passwordHash: string;
+  @IsString() @MinLength(6) password: string;
   @IsString() firstName: string;
   @IsString() lastName: string;
   @IsOptional() @IsString() phone?: string;
   @IsString() enrollmentNumber: string;
   @IsOptional() @IsString() birthDate?: string;
   @IsOptional() @IsString() specialtyId?: string;
-  @IsEmail() parentEmail: string;
-  @IsString() @MinLength(6) parentPassword: string;
-  @IsString() parentFirstName: string;
-  @IsString() parentLastName: string;
+
+  @IsOptional() @IsString() parentId?: string;
+
+  @IsOptional() @IsEmail() parentEmail?: string;
+  @IsOptional() @IsString() parentPassword?: string;
+  @IsOptional() @IsString() parentFirstName?: string;
+  @IsOptional() @IsString() parentLastName?: string;
   @IsOptional() @IsString() parentPhone?: string;
   @IsOptional() @IsString() parentPhoneSecondary?: string;
   @IsOptional() @IsString() parentOccupation?: string;
+  @IsOptional() @IsString() parentEmergencyContact?: string;
 }

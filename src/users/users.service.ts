@@ -1,28 +1,34 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { Users } from './Users';
 import { Teachers } from './Teachers';
 import { Admins } from './Admins';
 import { Parents } from './Parents';
 import { Students } from './Students';
-import { CreateTeacherDto, UpdateTeacherDto } from './dto/teachers.dto';
-import { CreateAdminDto, UpdateAdminDto } from './dto/admins.dto';
-import { CreateParentDto, UpdateParentDto } from './dto/parents.dto';
-import { CreateStudentDto, UpdateStudentDto } from './dto/students.dto';
+import { UpdateTeacherDto } from './dto/teachers.dto';
+import { UpdateAdminDto } from './dto/admins.dto';
+import { UpdateParentDto } from './dto/parents.dto';
+import { UpdateStudentDto } from './dto/students.dto';
 import { CreateUserDto, UpdateUserDto } from './dto/users.dto';
 import { RegisterAdminDto, RegisterTeacherDto, RegisterParentDto, RegisterStudentDto } from './dto/register.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
     @InjectRepository(Users) private readonly usersRepo: Repository<Users>,
     @InjectRepository(Teachers) private readonly teachersRepo: Repository<Teachers>,
     @InjectRepository(Admins) private readonly adminsRepo: Repository<Admins>,
     @InjectRepository(Parents) private readonly parentsRepo: Repository<Parents>,
     @InjectRepository(Students) private readonly studentsRepo: Repository<Students>,
   ) {}
+
+  private async checkEmail(email: string): Promise<void> {
+    const exists = await this.usersRepo.findOne({ where: { email } });
+    if (exists) throw new ConflictException(`El email ${email} ya está registrado`);
+  }
 
   async login(identifier: string, password: string) {
     let user = await this.usersRepo.findOne({ where: { email: identifier, isActive: true } });
@@ -73,7 +79,8 @@ export class UsersService {
 
   async createUser(dto: CreateUserDto): Promise<Users> {
     return this.usersRepo.save(this.usersRepo.create({
-      ...dto, passwordHash: await this.hashPassword(dto.passwordHash),
+      email: dto.email, passwordHash: await this.hashPassword(dto.password),
+      firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: dto.role,
     }));
   }
 
@@ -100,15 +107,6 @@ export class UsersService {
     return t;
   }
 
-  createTeacher(dto: CreateTeacherDto): Promise<Teachers> {
-    return this.teachersRepo.save(this.teachersRepo.create({
-      employeeCode: dto.employeeCode,
-      specialization: dto.specialization,
-      hireDate: dto.hireDate,
-      user: { id: dto.userId },
-    }));
-  }
-
   async updateTeacher(id: string, dto: UpdateTeacherDto): Promise<Teachers> {
     const teacher = await this.findOneTeacher(id);
     Object.assign(teacher, dto);
@@ -131,14 +129,6 @@ export class UsersService {
     return a;
   }
 
-  createAdmin(dto: CreateAdminDto): Promise<Admins> {
-    return this.adminsRepo.save(this.adminsRepo.create({
-      employeeCode: dto.employeeCode,
-      department: dto.department,
-      hireDate: dto.hireDate,
-      user: { id: dto.userId },
-    }));
-  }
 
   async updateAdmin(id: string, dto: UpdateAdminDto): Promise<Admins> {
     const admin = await this.findOneAdmin(id);
@@ -162,15 +152,6 @@ export class UsersService {
     return p;
   }
 
-  createParent(dto: CreateParentDto): Promise<Parents> {
-    return this.parentsRepo.save(this.parentsRepo.create({
-      phoneSecondary: dto.phoneSecondary,
-      emergencyContact: dto.emergencyContact,
-      occupation: dto.occupation,
-      user: { id: dto.userId },
-    }));
-  }
-
   async updateParent(id: string, dto: UpdateParentDto): Promise<Parents> {
     const parent = await this.findOneParent(id);
     Object.assign(parent, dto);
@@ -185,58 +166,90 @@ export class UsersService {
   // ─── Register compuestos (user + rol en 1) ───
 
   async registerAdmin(dto: RegisterAdminDto) {
-    const user = await this.usersRepo.save(this.usersRepo.create({
-      email: dto.email, passwordHash: await this.hashPassword(dto.passwordHash),
-      firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'admin',
-    }));
-    const admin = await this.adminsRepo.save(this.adminsRepo.create({
-      employeeCode: dto.employeeCode, department: dto.department, user: { id: user.id },
-    }));
-    return { ...admin, user };
+    await this.checkEmail(dto.email);
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.save(Users, manager.create(Users, {
+        email: dto.email, passwordHash: await this.hashPassword(dto.password),
+        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'admin',
+      }));
+      const admin = await manager.save(Admins, manager.create(Admins, {
+        employeeCode: dto.employeeCode, department: dto.department, user: { id: user.id },
+      }));
+      return { ...admin, user };
+    });
   }
 
   async registerTeacher(dto: RegisterTeacherDto) {
-    const user = await this.usersRepo.save(this.usersRepo.create({
-      email: dto.email, passwordHash: await this.hashPassword(dto.passwordHash),
-      firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'teacher',
-    }));
-    const teacher = await this.teachersRepo.save(this.teachersRepo.create({
-      employeeCode: dto.employeeCode, specialization: dto.specialization, user: { id: user.id },
-    }));
-    return { ...teacher, user };
+    await this.checkEmail(dto.email);
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.save(Users, manager.create(Users, {
+        email: dto.email, passwordHash: await this.hashPassword(dto.password),
+        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'teacher',
+      }));
+      const teacher = await manager.save(Teachers, manager.create(Teachers, {
+        employeeCode: dto.employeeCode, specialization: dto.specialization, user: { id: user.id },
+      }));
+      return { ...teacher, user };
+    });
   }
 
   async registerParent(dto: RegisterParentDto) {
-    const user = await this.usersRepo.save(this.usersRepo.create({
-      email: dto.email, passwordHash: await this.hashPassword(dto.passwordHash),
-      firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'parent',
-    }));
-    const parent = await this.parentsRepo.save(this.parentsRepo.create({
-      phoneSecondary: dto.phoneSecondary, emergencyContact: dto.emergencyContact,
-      occupation: dto.occupation, user: { id: user.id },
-    }));
-    return { ...parent, user };
+    await this.checkEmail(dto.email);
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.save(Users, manager.create(Users, {
+        email: dto.email, passwordHash: await this.hashPassword(dto.password),
+        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'parent',
+      }));
+      const parent = await manager.save(Parents, manager.create(Parents, {
+        phoneSecondary: dto.phoneSecondary, emergencyContact: dto.emergencyContact,
+        occupation: dto.occupation, user: { id: user.id },
+      }));
+      return { ...parent, user };
+    });
   }
 
   async registerStudent(dto: RegisterStudentDto) {
-    const parentUser = await this.usersRepo.save(this.usersRepo.create({
-      email: dto.parentEmail, passwordHash: await this.hashPassword(dto.parentPassword),
-      firstName: dto.parentFirstName, lastName: dto.parentLastName,
-      phone: dto.parentPhone ?? null, role: 'parent',
-    }));
-    const parent = await this.parentsRepo.save(this.parentsRepo.create({
-      phoneSecondary: dto.parentPhoneSecondary,
-      occupation: dto.parentOccupation, user: { id: parentUser.id },
-    }));
-    const user = await this.usersRepo.save(this.usersRepo.create({
-      email: dto.email, passwordHash: await this.hashPassword(dto.passwordHash),
-      firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'student',
-    }));
-    const student = await this.studentsRepo.save(this.studentsRepo.create({
-      userId: user.id, parentId: parent.id, enrollmentNumber: dto.enrollmentNumber,
-      birthDate: dto.birthDate, specialtyId: dto.specialtyId,
-    }));
-    return { ...student, user, parent: { ...parent, user: parentUser } };
+    await this.checkEmail(dto.email);
+    if (dto.parentId) {
+      const parent = await this.findOneParent(dto.parentId);
+    } else {
+      if (!dto.parentEmail || !dto.parentPassword || !dto.parentFirstName || !dto.parentLastName) {
+        throw new BadRequestException('parentEmail, parentPassword, parentFirstName y parentLastName son requeridos si no se proporciona parentId');
+      }
+      await this.checkEmail(dto.parentEmail);
+    }
+    return this.dataSource.transaction(async (manager) => {
+      let parent: Parents;
+      let parentUser: Users;
+      if (dto.parentId) {
+        const found = await manager.findOne(Parents, {
+          where: { id: dto.parentId }, relations: { user: true },
+        });
+        if (!found) throw new NotFoundException(`Parent ${dto.parentId} no encontrado`);
+        parent = found;
+        parentUser = parent.user;
+      } else {
+        parentUser = await manager.save(Users, manager.create(Users, {
+          email: dto.parentEmail, passwordHash: await this.hashPassword(dto.parentPassword!),
+          firstName: dto.parentFirstName, lastName: dto.parentLastName,
+          phone: dto.parentPhone ?? null, role: 'parent',
+        }));
+        parent = await manager.save(Parents, manager.create(Parents, {
+          phoneSecondary: dto.parentPhoneSecondary,
+          emergencyContact: dto.parentEmergencyContact,
+          occupation: dto.parentOccupation, user: { id: parentUser.id },
+        }));
+      }
+      const user = await manager.save(Users, manager.create(Users, {
+        email: dto.email, passwordHash: await this.hashPassword(dto.password),
+        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'student',
+      }));
+      const student = await manager.save(Students, manager.create(Students, {
+        userId: user.id, parentId: parent.id, enrollmentNumber: dto.enrollmentNumber,
+        birthDate: dto.birthDate, specialtyId: dto.specialtyId,
+      }));
+      return { ...student, user, parent: { ...parent, user: parentUser } };
+    });
   }
 
   // ─── Students ───
@@ -251,10 +264,6 @@ export class UsersService {
     });
     if (!s) throw new NotFoundException(`Student ${id} no encontrado`);
     return s;
-  }
-
-  createStudent(dto: CreateStudentDto): Promise<Students> {
-    return this.studentsRepo.save(this.studentsRepo.create(dto));
   }
 
   async updateStudent(id: string, dto: UpdateStudentDto): Promise<Students> {

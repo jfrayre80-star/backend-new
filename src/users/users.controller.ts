@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto/users.dto';
-import { CreateTeacherDto, UpdateTeacherDto } from './dto/teachers.dto';
-import { CreateAdminDto, UpdateAdminDto } from './dto/admins.dto';
-import { CreateParentDto, UpdateParentDto } from './dto/parents.dto';
-import { CreateStudentDto, UpdateStudentDto } from './dto/students.dto';
+import { UpdateTeacherDto } from './dto/teachers.dto';
+import { UpdateAdminDto } from './dto/admins.dto';
+import { UpdateParentDto } from './dto/parents.dto';
+import { UpdateStudentDto } from './dto/students.dto';
 import { RegisterAdminDto, RegisterTeacherDto, RegisterParentDto, RegisterStudentDto } from './dto/register.dto';
 
 @Controller()
@@ -55,9 +55,6 @@ export class UsersController {
   @Get('teachers/:id')
   findOneTeacher(@Param('id', ParseUUIDPipe) id: string) { return this.usersService.findOneTeacher(id); }
 
-  @Post('teachers')
-  createTeacher(@Body() dto: CreateTeacherDto) { return this.usersService.createTeacher(dto); }
-
   @Patch('teachers/:id')
   updateTeacher(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTeacherDto) {
     return this.usersService.updateTeacher(id, dto);
@@ -72,9 +69,6 @@ export class UsersController {
 
   @Get('admins/:id')
   findOneAdmin(@Param('id', ParseUUIDPipe) id: string) { return this.usersService.findOneAdmin(id); }
-
-  @Post('admins')
-  createAdmin(@Body() dto: CreateAdminDto) { return this.usersService.createAdmin(dto); }
 
   @Patch('admins/:id')
   updateAdmin(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminDto) {
@@ -91,9 +85,6 @@ export class UsersController {
   @Get('parents/:id')
   findOneParent(@Param('id', ParseUUIDPipe) id: string) { return this.usersService.findOneParent(id); }
 
-  @Post('parents')
-  createParent(@Body() dto: CreateParentDto) { return this.usersService.createParent(dto); }
-
   @Patch('parents/:id')
   updateParent(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateParentDto) {
     return this.usersService.updateParent(id, dto);
@@ -108,9 +99,6 @@ export class UsersController {
 
   @Get('students/:id')
   findOneStudent(@Param('id', ParseUUIDPipe) id: string) { return this.usersService.findOneStudent(id); }
-
-  @Post('students')
-  createStudent(@Body() dto: CreateStudentDto) { return this.usersService.createStudent(dto); }
 
   @Patch('students/:id')
   updateStudent(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateStudentDto) {
