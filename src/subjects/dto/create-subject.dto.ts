@@ -34,6 +34,6 @@ export class CreateSubjectDto {
   credits?: number;
 
   @IsOptional()
-  @IsInt()
+  @IsUUID()
   specialtyId?: string;
 }
