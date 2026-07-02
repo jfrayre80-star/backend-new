@@ -2,16 +2,15 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { Subjects } from '../academic/Subjects';
-import { Specialties } from '../academic/Specialties';
-
+import { SpecialtiesModule } from '../academic/specialties.module';
 import { SubjectsController } from './subjects.controller';
 import { SubjectsService } from './subjects.service';
 
 @Module({
   imports: [
+    SpecialtiesModule,
     TypeOrmModule.forFeature([
       Subjects,
-      Specialties,
     ]),
   ],
   controllers: [SubjectsController],

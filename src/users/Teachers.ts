@@ -39,7 +39,10 @@ export class Teachers {
   })
   specialization: string | null;
 
-  @Column("date", { name: "hire_date", nullable: true })
+  @Column("date", 
+    { name: "hire_date", 
+      nullable: true 
+    })
   hireDate: string | null;
 
   @OneToMany(() => Activities, (activities) => activities.teacher)
