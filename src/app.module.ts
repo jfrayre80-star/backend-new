@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { allEntities } from './entity-loader';
 import { UsersModule } from './users/users.module';
 import { SubjectsModule } from './subjects/subjects.module';
+import { SpecialtiesModule } from './academic/specialties.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SubjectsModule } from './subjects/subjects.module';
     }),
     UsersModule,
     SubjectsModule,
+    SpecialtiesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
