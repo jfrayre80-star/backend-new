@@ -6,6 +6,7 @@ import { allEntities } from './entity-loader';
 import { UsersModule } from './users/users.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { SpecialtiesModule } from './academic/specialties.module';
+import { SemestersModule } from './academic/semesters.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SpecialtiesModule } from './academic/specialties.module';
     UsersModule,
     SubjectsModule,
     SpecialtiesModule,
+    SemestersModule
   ],
   controllers: [AppController],
   providers: [AppService],
