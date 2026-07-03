@@ -7,7 +7,6 @@ import { UsersModule } from './users/users.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { SpecialtiesModule } from './academic/specialties.module';
 import { SemestersModule } from './academic/semesters.module';
-import { ClassroomModule } from './classroom/classroom.module';
 import { ClassroomsController } from './classrooms/classrooms.controller';
 import { ClassroomsModule } from './classrooms/classrooms.module';
 
@@ -28,7 +27,6 @@ import { ClassroomsModule } from './classrooms/classrooms.module';
     SubjectsModule,
     SpecialtiesModule,
     SemestersModule,
-    ClassroomModule,
     ClassroomsModule
   ],
   controllers: [AppController, ClassroomsController],
