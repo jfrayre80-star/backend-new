@@ -7,6 +7,9 @@ import { UsersModule } from './users/users.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { SpecialtiesModule } from './academic/specialties.module';
 import { SemestersModule } from './academic/semesters.module';
+import { ClassroomModule } from './classroom/classroom.module';
+import { ClassroomsController } from './classrooms/classrooms.controller';
+import { ClassroomsModule } from './classrooms/classrooms.module';
 
 @Module({
   imports: [
@@ -24,9 +27,11 @@ import { SemestersModule } from './academic/semesters.module';
     UsersModule,
     SubjectsModule,
     SpecialtiesModule,
-    SemestersModule
+    SemestersModule,
+    ClassroomModule,
+    ClassroomsModule
   ],
-  controllers: [AppController],
+  controllers: [AppController, ClassroomsController],
   providers: [AppService],
 })
 export class AppModule {}
