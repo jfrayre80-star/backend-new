@@ -9,6 +9,7 @@ import { SpecialtiesModule } from './academic/specialties.module';
 import { SemestersModule } from './academic/semesters.module';
 import { ClassroomsController } from './classrooms/classrooms.controller';
 import { ClassroomsModule } from './classrooms/classrooms.module';
+import { ClassroomTypesModule } from './classroom-types/classroom-types.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { ClassroomsModule } from './classrooms/classrooms.module';
     SubjectsModule,
     SpecialtiesModule,
     SemestersModule,
-    ClassroomsModule
+    ClassroomsModule,
+    ClassroomTypesModule
   ],
   controllers: [AppController, ClassroomsController],
   providers: [AppService],
