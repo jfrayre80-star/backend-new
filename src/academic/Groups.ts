@@ -49,6 +49,12 @@ export class Groups {
   @Column("uuid", { name: "specialty_id", nullable: true })
   specialtyId: string | null;
 
+  @Column("uuid", {
+  name: "base_classroom_id",
+  nullable: true,
+})
+baseClassroomId: string | null;
+
   @Column("uuid", { name: "semester_id", nullable: true })
   semesterId: string | null;
 
