@@ -7,10 +7,10 @@ import { UsersModule } from './users/users.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { SpecialtiesModule } from './academic/specialties.module';
 import { SemestersModule } from './academic/semesters.module';
-import { ClassroomsController } from './classrooms/classrooms.controller';
 import { ClassroomsModule } from './classrooms/classrooms.module';
 import { ClassroomTypesModule } from './classroom-types/classroom-types.module';
 import { GroupsModule } from './academic/groups.module';
+import { GroupEnrollmentsModule } from './academic/group-enrollments.module';
 
 @Module({
   imports: [
@@ -32,8 +32,9 @@ import { GroupsModule } from './academic/groups.module';
     ClassroomsModule,
     ClassroomTypesModule,
     GroupsModule,
+    GroupEnrollmentsModule,
   ],
-  controllers: [AppController, ClassroomsController],
+  controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
