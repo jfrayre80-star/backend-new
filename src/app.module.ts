@@ -11,6 +11,8 @@ import { ClassroomsModule } from './classrooms/classrooms.module';
 import { ClassroomTypesModule } from './classroom-types/classroom-types.module';
 import { GroupsModule } from './academic/groups.module';
 import { GroupEnrollmentsModule } from './academic/group-enrollments.module';
+import { SchedulesModule } from './academic/schedules.module';
+
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { GroupEnrollmentsModule } from './academic/group-enrollments.module';
     ClassroomTypesModule,
     GroupsModule,
     GroupEnrollmentsModule,
+    SchedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

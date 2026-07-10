@@ -32,6 +32,9 @@ export class Schedules {
   @Column("uuid", { name: "group_id" })
   groupId: string;
 
+  @Column("uuid", { name: "subject_id" })
+  subjectId: string;
+
   @Column("uuid", { name: "classroom_id", nullable: true })
   classroomId: string | null;
 
@@ -84,9 +87,9 @@ export class Schedules {
   @OneToMany(() => QrCodes, (qrCodes) => qrCodes.schedule)
   qrCodes: QrCodes[];
 
-  @ManyToOne(() => Classrooms, (classrooms) => classrooms.schedules)
+  @ManyToOne(() => Classrooms, (classrooms) => classrooms.schedules, { nullable: true })
   @JoinColumn([{ name: "classroom_id", referencedColumnName: "id" }])
-  classroom: Classrooms;
+  classroom: Classrooms | null;
 
   @ManyToOne(() => Groups, (groups) => groups.schedules)
   @JoinColumn([{ name: "group_id", referencedColumnName: "id" }])
