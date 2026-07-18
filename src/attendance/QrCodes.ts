@@ -24,11 +24,11 @@ export class QrCodes {
   expiresAt: Date;
 
   @Column("boolean", {
-    name: "is_used",
+    name: "is_active",
     nullable: true,
     default: () => "false",
   })
-  isUsed: boolean | null;
+  isActive: boolean | null;
 
   @Column("timestamp with time zone", {
     name: "created_at",
