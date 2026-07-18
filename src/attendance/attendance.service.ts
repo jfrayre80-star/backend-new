@@ -3,7 +3,7 @@ import {InjectRepository} from "@nestjs/typeorm";
 import {Repository} from "typeorm";
 import {Schedules} from "../academic/Schedules";
 import {QrCodes} from "./QrCodes";
-import {StartAttendanceDto} from "./start-attendance.dto";
+import {StartAttendanceDto} from "./dto/start-attendance.dto";
 import {randomBytes} from "crypto";
 
 @Injectable() export class AttendanceService{

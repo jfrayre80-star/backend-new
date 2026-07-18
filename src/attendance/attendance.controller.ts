@@ -1,5 +1,5 @@
 import {Body, Controller, Post} from "@nestjs/common";
-import {StartAttendanceDto} from "./start-attendance.dto";
+import {StartAttendanceDto} from "./dto/start-attendance.dto";
 import {AttendanceService} from "./attendance.service";
 
 
