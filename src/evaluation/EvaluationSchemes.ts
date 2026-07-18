@@ -30,13 +30,13 @@ export class EvaluationSchemes {
   })
   id: string;
 
-  @Column("uuid", { name: "subject_id", unique: true })
+  @Column("uuid", { name: "subject_id"})
   subjectId: string;
 
-  @Column("uuid", { name: "teacher_id", unique: true })
+  @Column("uuid", { name: "teacher_id"})
   teacherId: string;
 
-  @Column("uuid", { name: "group_id", unique: true })
+  @Column("uuid", { name: "group_id"})
   groupId: string;
 
   @Column("numeric", {
