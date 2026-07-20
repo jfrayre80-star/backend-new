@@ -14,6 +14,7 @@ import { GroupEnrollmentsModule } from './academic/group-enrollments.module';
 import { SchedulesModule } from './academic/schedules.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ActivitiesModule } from './evaluation/activities.module';
+import { PartialGradesModule } from './evaluation/partial-grades.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ActivitiesModule } from './evaluation/activities.module';
     SchedulesModule,
     AttendanceModule,
     ActivitiesModule,
+    PartialGradesModule,
     
   ],
   controllers: [AppController],
