@@ -37,6 +37,9 @@ export class Activities {
   @Column("uuid", { name: "group_id" })
   groupId: string;
 
+  @Column("uuid", { name: "subject_id" })
+subjectId: string;
+
   @Column("character varying", { name: "title", length: 255 })
   title: string;
 
