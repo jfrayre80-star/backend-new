@@ -13,6 +13,7 @@ import { GroupsModule } from './academic/groups.module';
 import { GroupEnrollmentsModule } from './academic/group-enrollments.module';
 import { SchedulesModule } from './academic/schedules.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ActivitiesModule } from './evaluation/activities.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { AttendanceModule } from './attendance/attendance.module';
     GroupEnrollmentsModule,
     SchedulesModule,
     AttendanceModule,
+    ActivitiesModule,
     
   ],
   controllers: [AppController],
