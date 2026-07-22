@@ -13,6 +13,7 @@ import { GroupsModule } from './academic/groups.module';
 import { GroupEnrollmentsModule } from './academic/group-enrollments.module';
 import { SchedulesModule } from './academic/schedules.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ExtraordinaryEnrollmentsModule } from './academic/extraordinary-enrollments.module';
 import { ActivitiesModule } from './evaluation/activities.module';
 import { PartialGradesModule } from './evaluation/partial-grades.module';
 import { PartialConfigsModule } from './evaluation/partial-configs.module';
@@ -41,11 +42,11 @@ import { PartialComponentsModule } from './evaluation/partial-components.module'
     GroupEnrollmentsModule,
     SchedulesModule,
     AttendanceModule,
+    ExtraordinaryEnrollmentsModule,
     ActivitiesModule,
     PartialGradesModule,
     PartialConfigsModule,
     PartialComponentsModule,
-    
   ],
   controllers: [AppController],
   providers: [AppService],

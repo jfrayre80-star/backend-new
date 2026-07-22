@@ -1,4 +1,4 @@
-import { IsInt, IsUUID, Min } from 'class-validator';
+import { IsInt, IsUUID, Max, Min } from 'class-validator';
 
 export class CreatePartialConfigDto {
   @IsUUID()
@@ -6,5 +6,6 @@ export class CreatePartialConfigDto {
 
   @IsInt()
   @Min(1)
+  @Max(3)
   partialNumber: number;
 }

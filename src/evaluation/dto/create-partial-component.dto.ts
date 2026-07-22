@@ -5,6 +5,8 @@ import {
   IsString,
   IsUUID,
   Length,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class CreatePartialComponentDto {
@@ -17,6 +19,8 @@ export class CreatePartialComponentDto {
   name: string;
 
   @IsNumberString()
+  @Min(0.01)
+  @Max(100)
   weight: string;
 
   @IsInt()
