@@ -1,75 +1,115 @@
-import {Injectable, NotFoundException, ConflictException} from "@nestjs/common";
-import {InjectRepository} from "@nestjs/typeorm";
-import {Repository} from "typeorm";
-import {Schedules} from "../academic/Schedules";
-import {QrCodes} from "./QrCodes";
-import {StartAttendanceDto} from "./dto/start-attendance.dto";
-import {randomBytes} from "crypto";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { randomBytes } from "crypto";
 
-@Injectable() export class AttendanceService{
+import { Schedules } from "../academic/Schedules";
+import { QrCodes } from "./QrCodes";
+import { StartAttendanceDto } from "./dto/start-attendance.dto";
 
-constructor(
+const QR_EXPIRATION_TIME = 30 * 1000;
+
+@Injectable()
+export class AttendanceService {
+
+  constructor(
 
     @InjectRepository(Schedules)
     private readonly schedulesRepository: Repository<Schedules>,
 
     @InjectRepository(QrCodes)
-    private readonly qrCodesRepository: Repository<QrCodes>
-){}
+    private readonly qrCodesRepository: Repository<QrCodes>,
 
-async start(dto: StartAttendanceDto) {
-    
-const schedule = await this.schedulesRepository.findOne({
-where:{id:dto.scheduleId,
-    isActive:true
-},
-relations:{
-    teacher:true,
-}
-});
+  ) {}
 
-if(!schedule){
-    throw new NotFoundException(`Schedule with id ${dto.scheduleId} not found or is not active`);
-}
-const activeQr = await this.qrCodesRepository.findOne({
-  where: {
-    schedule: {
-      id: dto.scheduleId,
-    },
-    isActive: true,
-  },
-  order: {
-    createdAt: "DESC",
-  },
-});
+  async start(dto: StartAttendanceDto) {
 
-if(activeQr && activeQr.expiresAt > new Date()){
-throw new ConflictException(`An active QR code already exists for this schedule and has not expired yet. Please wait until it expires or deactivate it before creating a new one.`);
-}
+    const schedule = await this.findActiveSchedule(dto.scheduleId);
 
-if (activeQr && activeQr.expiresAt <= new Date()){
-activeQr.isActive = false;
-await this.qrCodesRepository.save(activeQr);
-}
+    if (!schedule.teacher) {
+      throw new ConflictException(
+        "El horario no tiene un profesor asignado.",
+      );
+    }
 
-const hash = randomBytes(32).toString('hex');
+    const activeQr = await this.findActiveQr(dto.scheduleId);
 
-const qr= this.qrCodesRepository.create({
-hashValue:hash,
-schedule:schedule,
-teacher:schedule.teacher,
-expiresAt:new Date(Date.now() + 30000), 
-isActive:true,
-});
+    if (activeQr && activeQr.expiresAt > new Date()) {
+      throw new ConflictException(
+        "Ya existe un código QR activo para este horario y aún no ha caducado.",
+      );
+    }
 
-await this.qrCodesRepository.save(qr);
+    if (activeQr) {
+      activeQr.isActive = false;
+      await this.qrCodesRepository.save(activeQr);
+    }
 
-return {
-    message: "QR generated successfully",
-    qrId: qr.id,
-    hash:qr.hashValue,
-    expiresAt:qr.expiresAt,
-}
-}
+    const qr = this.qrCodesRepository.create({
+      hashValue: this.generateQrHash(),
+      schedule,
+      teacher: schedule.teacher,
+      expiresAt: new Date(
+        Date.now() + QR_EXPIRATION_TIME,
+      ),
+      isActive: true,
+    });
+
+    await this.qrCodesRepository.save(qr);
+
+    return {
+      message: "QR generado exitosamente.",
+      qrId: qr.id,
+      scheduleId: schedule.id,
+      hash: qr.hashValue,
+      expiresAt: qr.expiresAt,
+    };
+  }
+
+  private generateQrHash(): string {
+    return randomBytes(32).toString("hex");
+  }
+
+  private async findActiveSchedule(scheduleId: string,): Promise<Schedules> {
+
+    const schedule =
+      await this.schedulesRepository.findOne({
+        where: {
+          id: scheduleId,
+          isActive: true,
+        },
+        relations: {
+          teacher: true,
+        },
+      });
+
+    if (!schedule) {
+      throw new NotFoundException(
+        "Horario no encontrado o inactivo.",
+      );
+    }
+    return schedule;
+  }
+
+  private async findActiveQr(scheduleId: string,): Promise<QrCodes | null> {
+
+    return this.qrCodesRepository.findOne({
+      where: {
+        schedule: {
+          id: scheduleId,
+        },
+        isActive: true,
+      },
+      order: {
+        createdAt: "DESC",
+      },
+    });
+  }
+
+
 
 }
