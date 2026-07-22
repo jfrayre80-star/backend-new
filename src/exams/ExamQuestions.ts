@@ -24,6 +24,9 @@ export class ExamQuestions {
   @Column("uuid", { name: "exam_id" })
   examId: string;
 
+  @Column("uuid", { name: "question_context_id", nullable: true })
+  questionContextId: string | null;
+
   @Column("enum", { name: "question_type", enum: ["multiple_choice", "open"] })
   questionType: "multiple_choice" | "open";
 

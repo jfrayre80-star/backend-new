@@ -18,6 +18,8 @@ import { ActivitiesModule } from './evaluation/activities.module';
 import { PartialGradesModule } from './evaluation/partial-grades.module';
 import { PartialConfigsModule } from './evaluation/partial-configs.module';
 import { PartialComponentsModule } from './evaluation/partial-components.module';
+import { EvaluationSchemesModule } from './evaluation/evaluation-schemes.module';
+import { ExamsModule } from './exams/exams.module';
 
 @Module({
   imports: [
@@ -47,6 +49,8 @@ import { PartialComponentsModule } from './evaluation/partial-components.module'
     PartialGradesModule,
     PartialConfigsModule,
     PartialComponentsModule,
+    EvaluationSchemesModule,
+    ExamsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
