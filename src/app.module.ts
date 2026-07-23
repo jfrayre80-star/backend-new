@@ -20,6 +20,7 @@ import { PartialConfigsModule } from './evaluation/partial-configs.module';
 import { PartialComponentsModule } from './evaluation/partial-components.module';
 import { EvaluationSchemesModule } from './evaluation/evaluation-schemes.module';
 import { ExamsModule } from './exams/exams.module';
+import { SemesterModule } from './semester/semester.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ExamsModule } from './exams/exams.module';
     PartialComponentsModule,
     EvaluationSchemesModule,
     ExamsModule,
+    SemesterModule,
   ],
   controllers: [AppController],
   providers: [AppService],
