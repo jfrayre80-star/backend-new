@@ -22,6 +22,7 @@ import { EvaluationSchemesModule } from './evaluation/evaluation-schemes.module'
 import { ExamsModule } from './exams/exams.module';
 import { SemesterModule } from './semester/semester.module';
 import { AuthModule } from './auth/auth.module';
+import { SystemConfigModule } from './infrastructure/system-config.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { AuthModule } from './auth/auth.module';
     ExamsModule,
     SemesterModule,
     AuthModule,
+    SystemConfigModule,
   ],
   controllers: [AppController],
   providers: [AppService],
