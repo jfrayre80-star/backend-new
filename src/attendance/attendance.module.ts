@@ -6,8 +6,9 @@ import { AttendanceService } from './attendance.service';
 
 import { AttendanceRecords } from './AttendanceRecords';
 import { QrCodes } from './QrCodes';
-
 import { Schedules } from '../academic/Schedules';
+import {Students} from "../users/Students";
+
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { Schedules } from '../academic/Schedules';
       AttendanceRecords,
       QrCodes,
       Schedules,
+      Students,
     ]),
   ],
   controllers: [AttendanceController],
