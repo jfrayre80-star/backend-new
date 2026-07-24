@@ -24,6 +24,9 @@ import { SemesterModule } from './semester/semester.module';
 import { AuthModule } from './auth/auth.module';
 import { SystemConfigModule } from './infrastructure/system-config.module';
 import { ActiveSessionsModule } from './infrastructure/active-sessions.module';
+import { ActivityDeliveriesModule } from './evaluation/activity-deliveries.module';
+import { ActivityExceptionsModule } from './evaluation/activity-exceptions.module';
+import { ActivityTeamsModule } from './evaluation/activity-teams.module';
 
 @Module({
   imports: [
@@ -59,6 +62,9 @@ import { ActiveSessionsModule } from './infrastructure/active-sessions.module';
     AuthModule,
     SystemConfigModule,
     ActiveSessionsModule,
+    ActivityDeliveriesModule,
+    ActivityExceptionsModule,
+    ActivityTeamsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
