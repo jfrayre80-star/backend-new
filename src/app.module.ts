@@ -23,8 +23,10 @@ import { ExamsModule } from './exams/exams.module';
 import { SemesterModule } from './semester/semester.module';
 import { AuthModule } from './auth/auth.module';
 import { SystemConfigModule } from './infrastructure/system-config.module';
+import { ActiveSessionsModule } from './infrastructure/active-sessions.module';
 import { ActivityDeliveriesModule } from './evaluation/activity-deliveries.module';
 import { ActivityExceptionsModule } from './evaluation/activity-exceptions.module';
+import { ActivityTeamsModule } from './evaluation/activity-teams.module';
 
 @Module({
   imports: [
@@ -59,8 +61,10 @@ import { ActivityExceptionsModule } from './evaluation/activity-exceptions.modul
     SemesterModule,
     AuthModule,
     SystemConfigModule,
+    ActiveSessionsModule,
     ActivityDeliveriesModule,
     ActivityExceptionsModule,
+    ActivityTeamsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
