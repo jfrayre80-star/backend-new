@@ -25,6 +25,7 @@ import { AuthModule } from './auth/auth.module';
 import { SystemConfigModule } from './infrastructure/system-config.module';
 import { ActivityDeliveriesModule } from './evaluation/activity-deliveries.module';
 import { ActivityExceptionsModule } from './evaluation/activity-exceptions.module';
+import { ActivityTeamsModule } from './evaluation/activity-teams.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { ActivityExceptionsModule } from './evaluation/activity-exceptions.modul
     SystemConfigModule,
     ActivityDeliveriesModule,
     ActivityExceptionsModule,
+    ActivityTeamsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
