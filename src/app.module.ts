@@ -23,6 +23,7 @@ import { ExamsModule } from './exams/exams.module';
 import { SemesterModule } from './semester/semester.module';
 import { AuthModule } from './auth/auth.module';
 import { SystemConfigModule } from './infrastructure/system-config.module';
+import { ActiveSessionsModule } from './infrastructure/active-sessions.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { SystemConfigModule } from './infrastructure/system-config.module';
     SemesterModule,
     AuthModule,
     SystemConfigModule,
+    ActiveSessionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
