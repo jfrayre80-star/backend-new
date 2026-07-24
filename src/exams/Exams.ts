@@ -29,6 +29,18 @@ export class Exams {
   @Column("uuid", { name: "group_id" })
   groupId: string;
 
+  @Column("uuid", { name: "subject_id" })
+  subjectId: string;
+
+  @Column("uuid", { name: "teacher_id" })
+  teacherId: string;
+
+  @Column("uuid", { name: "activity_id", nullable: true })
+  activityId: string | null;
+
+  @Column("uuid", { name: "evaluation_scheme_id", nullable: true })
+  evaluationSchemeId: string | null;
+
   @Column("character varying", { name: "title", length: 255 })
   title: string;
 

@@ -19,10 +19,10 @@ export class ActivityExceptions {
   })
   id: string;
 
-  @Column("uuid", { name: "activity_id", unique: true })
+  @Column("uuid", { name: "activity_id" })
   activityId: string;
 
-  @Column("uuid", { name: "student_id", unique: true })
+  @Column("uuid", { name: "student_id" })
   studentId: string;
 
   @Column("timestamp with time zone", { name: "reopened_until" })

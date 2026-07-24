@@ -26,10 +26,10 @@ export class PartialConfigs {
   })
   id: string;
 
-  @Column("uuid", { name: "evaluation_scheme_id", unique: true })
+  @Column("uuid", { name: "evaluation_scheme_id" })
   evaluationSchemeId: string;
 
-  @Column("integer", { name: "partial_number", unique: true })
+  @Column("integer", { name: "partial_number" })
   partialNumber: number;
 
   @Column("timestamp with time zone", {

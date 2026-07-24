@@ -29,12 +29,6 @@ export class UsersController {
   @Delete('users/:id')
   removeUser(@Param('id', ParseUUIDPipe) id: string) { return this.usersService.removeUser(id); }
 
-  // ─── Login ───
-  @Post('auth/login')
-  login(@Body() dto: { identifier: string; password: string }) {
-    return this.usersService.login(dto.identifier, dto.password);
-  }
-
   // ─── Register compuestos ───
   @Post('admins/register')
   registerAdmin(@Body() dto: RegisterAdminDto) { return this.usersService.registerAdmin(dto); }
