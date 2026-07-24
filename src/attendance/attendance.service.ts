@@ -4,10 +4,12 @@ import { Repository } from "typeorm";
 import { randomBytes } from "crypto";
 import { Schedules } from "../academic/Schedules";
 import { QrCodes } from "./QrCodes";
-import { StartAttendanceDto } from "./dto/start-attendance.dto";
-import {Students} from "../users/Students";
-import {ScanQrDto} from "./dto/start-attendance.dto";
-import {AttendanceRecords} from "./AttendanceRecords";
+import { StartAttendanceDto } from "./dto/attendance.dto";
+import { Students } from "../users/Students";
+import { ScanQrDto } from "./dto/scan-qr.dto";
+import { AttendanceRecords } from "./AttendanceRecords";
+import { Justifications } from "./Justifications";
+import { CreateJustificationDto } from "./dto/create-justification.dto";
 
 const QR_EXPIRATION_TIME = 30 * 1000;
 const LATE_TOLERANCE_MINUTES = 10;
@@ -27,6 +29,9 @@ export class AttendanceService {
 
     @InjectRepository(AttendanceRecords)
     private readonly attendanceRecordsRepository: Repository<AttendanceRecords>,
+
+    @InjectRepository(Justifications)
+    private readonly justificationsRepository: Repository<Justifications>,
   ) {}
 
   async start(dto: StartAttendanceDto) {
@@ -165,4 +170,31 @@ return {
   scheduleId,
 }
 }
+
+async createJustification (registeredByUserId: string, dto:CreateJustificationDto){
+const justification = this.justificationsRepository.create({
+studentId:dto.studentId,
+reason: dto.reason,
+justificationDate: dto.justificationDate,
+moduleNumber: dto.moduleNumber,
+registeredBy: { id: registeredByUserId },
+isActive: true,
+});
+
+await this.justificationsRepository.save(justification);
+
+return { 
+    message: 'Justificante registrado exitosamente.', 
+    justification 
+  };
+
+}
+async findJustificationsByStudent(studentId: string) {
+  return this.justificationsRepository.find({
+    where: { studentId, isActive: true },
+    order: { justificationDate: 'DESC' },
+  });
+}
+
+
 }
