@@ -24,6 +24,7 @@ import { SemesterModule } from './semester/semester.module';
 import { AuthModule } from './auth/auth.module';
 import { SystemConfigModule } from './infrastructure/system-config.module';
 import { ActivityDeliveriesModule } from './evaluation/activity-deliveries.module';
+import { ActivityExceptionsModule } from './evaluation/activity-exceptions.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ActivityDeliveriesModule } from './evaluation/activity-deliveries.modul
     AuthModule,
     SystemConfigModule,
     ActivityDeliveriesModule,
+    ActivityExceptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
