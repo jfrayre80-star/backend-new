@@ -1,18 +1,16 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import {ConflictException, Injectable, NotFoundException, BadRequestException} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { randomBytes } from "crypto";
-
 import { Schedules } from "../academic/Schedules";
 import { QrCodes } from "./QrCodes";
 import { StartAttendanceDto } from "./dto/start-attendance.dto";
+import {Students} from "../users/Students";
+import {ScanQrDto} from "./dto/start-attendance.dto";
+import {AttendanceRecords} from "./AttendanceRecords";
 
 const QR_EXPIRATION_TIME = 30 * 1000;
-
+const LATE_TOLERANCE_MINUTES = 10;
 @Injectable()
 export class AttendanceService {
 
@@ -24,6 +22,11 @@ export class AttendanceService {
     @InjectRepository(QrCodes)
     private readonly qrCodesRepository: Repository<QrCodes>,
 
+    @InjectRepository(Students)
+    private readonly studentsRepository: Repository<Students>,
+
+    @InjectRepository(AttendanceRecords)
+    private readonly attendanceRecordsRepository: Repository<AttendanceRecords>,
   ) {}
 
   async start(dto: StartAttendanceDto) {
@@ -110,6 +113,56 @@ export class AttendanceService {
     });
   }
 
+async scanQr(studentId: string, dto: ScanQrDto) {
 
+const student = await this.studentsRepository.findOne({
+  where: {userId:studentId},
+});
 
+if (!student) {
+  throw new NotFoundException("Estudiante no encontrado.");
+}
+
+const qr= await this.qrCodesRepository.findOne({
+  where: {hashValue:dto.qrHash, isActive:true},
+  relations: {schedule:true},
+});
+
+if (!qr || qr.expiresAt < new Date()) {
+  throw new BadRequestException("El código QR no es válido o ha caducado.");
+}
+
+const scheduleId = qr.schedule.id;
+const today = new Date().toISOString().split("T")[0];
+
+const existingRecord = await this.attendanceRecordsRepository.findOne({
+where : {studentId: student.id, scheduleId, recordedDate: today},
+});
+
+if (existingRecord) {
+  throw new ConflictException("El estudiante ya ha registrado asistencia para este horario hoy.");
+}
+
+const qrCreatedAt = qr.createdAt ? new Date(qr.createdAt).getTime() : Date.now();
+const diffMinutes = (Date.now() - qrCreatedAt) / (1000 * 60);
+
+const status: 'present' | 'late' = diffMinutes > LATE_TOLERANCE_MINUTES ? 'late' : 'present';
+
+const record = this.attendanceRecordsRepository.create({
+  studentId: student.id,
+  scheduleId,
+  status,
+  qrHash: dto.qrHash,
+  scanTimestamp: new Date(),
+  recordedDate: today,
+});
+
+await this.attendanceRecordsRepository.save(record);
+
+return {
+  message: "Asistencia registrada exitosamente.",
+  studentId: student.id,
+  scheduleId,
+}
+}
 }
