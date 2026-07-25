@@ -73,21 +73,38 @@ export class Submissions {
   })
   isLate: boolean | null;
 
-  @Column("numeric", { name: "grade", nullable: true, precision: 5, scale: 2 })
-  grade: string | null;
+@Column("numeric", {
+  name: "grade",
+  nullable: true,
+  precision: 5,
+  scale: 2,
+})
+grade: string | null;
 
-  @Column("text", { name: "feedback", nullable: true })
-  feedback: string | null;
+@Column("text", {
+  name: "feedback",
+  nullable: true,
+})
+feedback: string | null;
 
-  @Column("timestamp with time zone", { name: "graded_at", nullable: true })
-  gradedAt: Date | null;
+@Column("uuid", {
+  name: "graded_by",
+  nullable: true,
+})
+gradedById: string | null;
 
-  @Column("boolean", {
-    name: "is_auto_graded",
-    nullable: true,
-    default: () => "false",
-  })
-  isAutoGraded: boolean | null;
+@Column("timestamp with time zone", {
+  name: "graded_at",
+  nullable: true,
+})
+gradedAt: Date | null;
+
+@Column("boolean", {
+  name: "is_auto_graded",
+  nullable: true,
+  default: () => "false",
+})
+isAutoGraded: boolean | null;
 
   @ManyToOne(
     () => ActivityDeliveries,

@@ -27,6 +27,7 @@ import { ActiveSessionsModule } from './infrastructure/active-sessions.module';
 import { ActivityDeliveriesModule } from './evaluation/activity-deliveries.module';
 import { ActivityExceptionsModule } from './evaluation/activity-exceptions.module';
 import { ActivityTeamsModule } from './evaluation/activity-teams.module';
+import { SubmissionsModule } from './evaluation/submissions.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { ActivityTeamsModule } from './evaluation/activity-teams.module';
     ActivityDeliveriesModule,
     ActivityExceptionsModule,
     ActivityTeamsModule,
+    SubmissionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
