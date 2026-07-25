@@ -1,12 +1,12 @@
 import {IsNotEmpty, IsUUID, IsString, IsEnum, IsOptional, IsBoolean, IsArray, ValidateNested, IsInt, Min, Max} from "class-validator";
-export class SyncGateLogItemDto {
+export class CreateAccessLogDto {
   @IsNotEmpty()
   @IsUUID()
   studentId: string;
   
   @IsNotEmpty()
   @IsEnum(['entry', 'exit'])
-  status: "entry" | "exit" ;
+  eventType: "entry" | "exit" ;
 
   @IsNotEmpty()
   scannedAt: Date;

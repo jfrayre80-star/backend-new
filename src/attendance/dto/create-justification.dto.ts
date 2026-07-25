@@ -1,19 +1,25 @@
-import {IsNotEmpty, IsUUID, IsString, IsInt, Min, Max} from "class-validator";
+import {IsUUID, IsNotEmpty, IsDateString, IsOptional, IsString, IsArray, IsInt, Min, Max,} from 'class-validator';
+
 export class CreateJustificationDto {
-  @IsNotEmpty()
   @IsUUID()
+  @IsNotEmpty()
   studentId: string;
 
+  @IsUUID()
   @IsNotEmpty()
+  registeredBy: string; 
+
+  @IsDateString()
+  @IsNotEmpty()
+  justificationDate: string; 
   @IsString()
+  @IsNotEmpty()
   reason: string;
 
-  @IsNotEmpty()
-  justificationDate: string;
-
-  @IsNotEmpty()
-  @IsInt()
-  @Min(1)
-  @Max(8)
-  moduleNumber: number; 
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(10, { each: true })
+  modules?: number[];
 }
