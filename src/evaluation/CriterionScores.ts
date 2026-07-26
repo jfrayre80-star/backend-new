@@ -18,10 +18,10 @@ export class CriterionScores {
   })
   id: string;
 
-  @Column("uuid", { name: "component_score_id", unique: true })
+  @Column("uuid", { name: "component_score_id" })
   componentScoreId: string;
 
-  @Column("uuid", { name: "component_criterion_id", unique: true })
+  @Column("uuid", { name: "component_criterion_id" })
   componentCriterionId: string;
 
   @Column("numeric", { name: "score", nullable: true, precision: 5, scale: 2 })
