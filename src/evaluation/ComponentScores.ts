@@ -13,8 +13,8 @@ import { CriterionScores } from "./CriterionScores";
 @Index("component_scores_pkey", ["id"], { unique: true })
 @Index(
   "component_scores_partial_grade_id_partial_component_id_key",
-  ["partialComponentId", "partialGradeId"],
-  { unique: true }
+  ["partialGradeId", "partialComponentId"],
+  { unique: true },
 )
 @Index("idx_component_scores_grade", ["partialGradeId"], {})
 @Entity("component_scores", { schema: "public" })
@@ -26,10 +26,10 @@ export class ComponentScores {
   })
   id: string;
 
-  @Column("uuid", { name: "partial_grade_id", unique: true })
+  @Column("uuid", { name: "partial_grade_id" })
   partialGradeId: string;
 
-  @Column("uuid", { name: "partial_component_id", unique: true })
+  @Column("uuid", { name: "partial_component_id" })
   partialComponentId: string;
 
   @Column("numeric", { name: "score", nullable: true, precision: 5, scale: 2 })

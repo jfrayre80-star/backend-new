@@ -6,13 +6,8 @@ import { AttendanceService } from './attendance.service';
 
 import { AttendanceRecords } from './AttendanceRecords';
 import { QrCodes } from './QrCodes';
-import { AccessLogs } from './AccessLogs';
-import { Justifications } from './Justifications';
-
 import { Schedules } from '../academic/Schedules';
-import { GroupEnrollments } from '../academic/GroupEnrollments';
-
-import { Students } from '../users/Students';
+import {Students} from "../users/Students";
 
 @Module({
   imports: [
@@ -21,9 +16,6 @@ import { Students } from '../users/Students';
       QrCodes,
       Schedules,
       Students,
-      Justifications,
-      GroupEnrollments,
-      AccessLogs,
     ]),
   ],
   controllers: [AttendanceController],

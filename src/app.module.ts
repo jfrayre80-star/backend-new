@@ -29,6 +29,9 @@ import { ActivityExceptionsModule } from './evaluation/activity-exceptions.modul
 import { ActivityTeamsModule } from './evaluation/activity-teams.module';
 import { SubmissionsModule } from './evaluation/submissions.module';
 import { DisciplinaryReportsModule } from './evaluation/disciplinary-reports.module';
+import { ComponentCriteriaModule } from './evaluation/component-criteria.module';
+import { ComponentScoresModule } from './evaluation/component-scores.module';
+import { CriterionScoresModule } from './evaluation/criterion-scores.module';
 
 @Module({
   imports: [
@@ -69,6 +72,9 @@ import { DisciplinaryReportsModule } from './evaluation/disciplinary-reports.mod
     ActivityTeamsModule,
     SubmissionsModule,
     DisciplinaryReportsModule,
+    ComponentCriteriaModule,
+    ComponentScoresModule,
+    CriterionScoresModule,
   ],
   controllers: [AppController],
   providers: [AppService],
