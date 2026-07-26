@@ -28,6 +28,7 @@ import { ActivityDeliveriesModule } from './evaluation/activity-deliveries.modul
 import { ActivityExceptionsModule } from './evaluation/activity-exceptions.module';
 import { ActivityTeamsModule } from './evaluation/activity-teams.module';
 import { SubmissionsModule } from './evaluation/submissions.module';
+import { DisciplinaryReportsModule } from './evaluation/disciplinary-reports.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { SubmissionsModule } from './evaluation/submissions.module';
     ActivityExceptionsModule,
     ActivityTeamsModule,
     SubmissionsModule,
+    DisciplinaryReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

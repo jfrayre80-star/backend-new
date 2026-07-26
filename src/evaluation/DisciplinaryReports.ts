@@ -13,15 +13,20 @@ export class DisciplinaryReports {
   })
   id: string;
 
-  @Column("uuid", { name: "student_id" })
-  studentId: string;
+@Column("uuid", { name: "student_id" })
+studentId: string;
 
-  @Column("enum", {
+@Column("uuid", {
+  name: "reported_by",
+})
+reportedById: string;
+
+@Column("enum", {
     name: "severity",
     enum: ["low", "medium", "high", "critical"],
     default: () => "'low'",
-  })
-  severity: "low" | "medium" | "high" | "critical";
+})
+severity: "low" | "medium" | "high" | "critical";
 
   @Column("text", { name: "description" })
   description: string;
