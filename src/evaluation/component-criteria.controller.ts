@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
 import { ComponentCriteriaService } from './component-criteria.service';
@@ -13,7 +15,13 @@ import { ComponentCriteriaService } from './component-criteria.service';
 import { CreateComponentCriterionDto } from './dto/create-component-criterion.dto';
 import { UpdateComponentCriterionDto } from './dto/update-component-criterion.dto';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+
 @Controller('component-criteria')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'teacher')
 export class ComponentCriteriaController {
   constructor(
     private readonly componentCriteriaService: ComponentCriteriaService,
@@ -35,13 +43,15 @@ export class ComponentCriteriaController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.componentCriteriaService.findOne(id);
   }
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body()
     updateComponentCriterionDto: UpdateComponentCriterionDto,
   ) {
@@ -52,7 +62,9 @@ export class ComponentCriteriaController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.componentCriteriaService.remove(id);
   }
 }

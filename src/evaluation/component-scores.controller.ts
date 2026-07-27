@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
 import { ComponentScoresService } from './component-scores.service';
@@ -13,7 +15,13 @@ import { ComponentScoresService } from './component-scores.service';
 import { CreateComponentScoreDto } from './dto/create-component-score.dto';
 import { UpdateComponentScoreDto } from './dto/update-component-score.dto';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+
 @Controller('component-scores')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'teacher')
 export class ComponentScoresController {
   constructor(
     private readonly componentScoresService: ComponentScoresService,
@@ -35,13 +43,15 @@ export class ComponentScoresController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.componentScoresService.findOne(id);
   }
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body()
     updateComponentScoreDto: UpdateComponentScoreDto,
   ) {
@@ -52,7 +62,9 @@ export class ComponentScoresController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.componentScoresService.remove(id);
   }
 }
