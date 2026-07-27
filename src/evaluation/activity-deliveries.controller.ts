@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
 import { ActivityDeliveriesService } from './activity-deliveries.service';
@@ -13,7 +15,13 @@ import { ActivityDeliveriesService } from './activity-deliveries.service';
 import { CreateActivityDeliveryDto } from './dto/create-activity-delivery.dto';
 import { UpdateActivityDeliveryDto } from './dto/update-activity-delivery.dto';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+
 @Controller('activity-deliveries')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'teacher')
 export class ActivityDeliveriesController {
   constructor(
     private readonly activityDeliveriesService: ActivityDeliveriesService,
@@ -35,13 +43,15 @@ export class ActivityDeliveriesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.activityDeliveriesService.findOne(id);
   }
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body()
     updateActivityDeliveryDto: UpdateActivityDeliveryDto,
   ) {
@@ -52,7 +62,9 @@ export class ActivityDeliveriesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.activityDeliveriesService.remove(id);
   }
 }

@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
 import { DisciplinaryReportsService } from './disciplinary-reports.service';
@@ -13,7 +15,13 @@ import { DisciplinaryReportsService } from './disciplinary-reports.service';
 import { CreateDisciplinaryReportDto } from './dto/create-disciplinary-report.dto';
 import { UpdateDisciplinaryReportDto } from './dto/update-disciplinary-report.dto';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+
 @Controller('disciplinary-reports')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'teacher')
 export class DisciplinaryReportsController {
   constructor(
     private readonly disciplinaryReportsService: DisciplinaryReportsService,
@@ -35,13 +43,15 @@ export class DisciplinaryReportsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.disciplinaryReportsService.findOne(id);
   }
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body()
     updateDisciplinaryReportDto: UpdateDisciplinaryReportDto,
   ) {
@@ -52,7 +62,9 @@ export class DisciplinaryReportsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.disciplinaryReportsService.remove(id);
   }
 }

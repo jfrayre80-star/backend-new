@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
 import { ActivityTeamsService } from './activity-teams.service';
@@ -13,7 +15,13 @@ import { ActivityTeamsService } from './activity-teams.service';
 import { CreateActivityTeamDto } from './dto/create-activity-team.dto';
 import { UpdateActivityTeamDto } from './dto/update-activity-team.dto';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+
 @Controller('activity-teams')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'teacher')
 export class ActivityTeamsController {
   constructor(
     private readonly activityTeamsService: ActivityTeamsService,
@@ -35,13 +43,15 @@ export class ActivityTeamsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.activityTeamsService.findOne(id);
   }
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body()
     updateActivityTeamDto: UpdateActivityTeamDto,
   ) {
@@ -52,7 +62,9 @@ export class ActivityTeamsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.activityTeamsService.remove(id);
   }
 }

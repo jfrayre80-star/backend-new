@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
 import { PartialGradesService } from './partial-grades.service';
@@ -13,7 +15,13 @@ import { PartialGradesService } from './partial-grades.service';
 import { CreatePartialGradeDto } from './dto/create-partial-grade.dto';
 import { UpdatePartialGradeDto } from './dto/update-partial-grade.dto';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+
 @Controller('partial-grades')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'teacher')
 export class PartialGradesController {
   constructor(
     private readonly partialGradesService: PartialGradesService,
@@ -25,7 +33,9 @@ export class PartialGradesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.partialGradesService.findOne(id);
   }
 
@@ -34,12 +44,14 @@ export class PartialGradesController {
     @Body()
     createPartialGradeDto: CreatePartialGradeDto,
   ) {
-    return this.partialGradesService.create(createPartialGradeDto);
+    return this.partialGradesService.create(
+      createPartialGradeDto,
+    );
   }
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body()
     updatePartialGradeDto: UpdatePartialGradeDto,
   ) {
@@ -50,7 +62,9 @@ export class PartialGradesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.partialGradesService.remove(id);
   }
 }
