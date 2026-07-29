@@ -349,6 +349,29 @@ export class AttendanceService {
       },
     });
   }
+   
+//todos o filtrar por fecha
+ async findAllJustifications(date?: string){
+ const whereCondition: any = {isActive: true};
+
+ if (date){
+  whereCondition.justificationDate = date;
+ }
+
+  return this.justificationsRepository.find({
+    where: whereCondition,
+    relations: {
+      student: {
+          user:true,
+      },
+    },
+    order: {
+      justificationDate:'DESC',
+      createdAt: 'DESC'
+    },
+  });
+
+ }
 
   // ACCESS LOGS
 
