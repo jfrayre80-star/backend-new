@@ -188,113 +188,125 @@ export class AttendanceService {
   }
 
   // JUSTIFICATIONS
+//crear justificante
+async createJustification(dto: CreateJustificationDto) {
+  const { studentId, registeredBy, justificationDate, reason, modules } = dto;
 
-  async createJustification(dto: CreateJustificationDto) {
-    const { studentId, registeredBy, justificationDate, reason, modules } = dto;
+  const [year, month, day] = justificationDate.split("-").map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  const jsDay = dateObj.getDay();
+  const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
-    // 1. Obtener día de la semana para Postgres (1 = Lunes, ..., 7 = Domingo)
-    const [year, month, day] = justificationDate.split("-").map(Number);
-    const dateObj = new Date(year, month - 1, day);
-    const jsDay = dateObj.getDay();
-    const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+  let targetModules: number[] = [];
 
-    let targetModules: number[] = [];
+  // ESCENARIO 1 MÓDULOS ESPECIFICADOS 
+  if (modules && modules.length > 0) {
+    targetModules = Array.from(new Set(modules));
+  }
+  // ESCENARIO 2: DÍA COMPLETO 
+  else {
+    const enrollment = await this.groupEnrollmentRepo.findOne({
+      where: { studentId },
+    });
 
-    // ESCENARIO 1: MÓDULOS ESPECIFICADOS
-    if (modules && modules.length > 0) {
-      targetModules = Array.from(new Set(modules));
-    }
-    // ESCENARIO 2: DÍA COMPLETO
-    else {
-      const enrollment = await this.groupEnrollmentRepo.findOne({
-        where: { studentId },
-      });
-
-      if (!enrollment) {
-        throw new NotFoundException(
-          "El estudiante no se encuentra inscrito en ningún grupo activo.",
-        );
-      }
-
-      const schedulesForDay = await this.schedulesRepository.find({
-        where: {
-          groupId: enrollment.groupId,
-          dayOfWeek: dayOfWeek,
-          isActive: true,
-        },
-      });
-
-      if (schedulesForDay.length === 0) {
-        throw new NotFoundException(
-          "El alumno no tiene clases programadas para este día de la semana.",
-        );
-      }
-
-      targetModules = schedulesForDay.map((_, index) => index + 1);
-    }
-
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const recordsToInsert = targetModules.map((moduleNum) => {
-        return queryRunner.manager.create(Justifications, {
-          studentId,
-          reason,
-          justificationDate,
-          moduleNumber: moduleNum,
-          registeredBy: { id: registeredBy } as any,
-          isActive: true,
-        });
-      });
-
-      const savedRecords = await queryRunner.manager.save(
-        Justifications,
-        recordsToInsert,
+    if (!enrollment) {
+      throw new NotFoundException(
+        "El estudiante no se encuentra inscrito en ningún grupo activo.",
       );
-
-      await queryRunner.commitTransaction();
-
-      return {
-        message: modules?.length
-          ? "Justificante registrado para los módulos seleccionados."
-          : "Justificante registrado para todo el día.",
-        totalRecords: savedRecords.length,
-        data: savedRecords,
-      };
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw new BadRequestException(
-        `Error al guardar justificante: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      await queryRunner.release();
     }
+
+    // Traemos los horarios del día ordenados por hora de inicio cronológica
+    const schedulesForDay = await this.schedulesRepository.find({
+      where: {
+        groupId: enrollment.groupId,
+        dayOfWeek: dayOfWeek,
+        isActive: true,
+      },
+      order: {
+        startTime: "ASC", // Ordena las clases desde la mañana a la tarde
+      },
+    });
+
+    if (schedulesForDay.length === 0) {
+      throw new NotFoundException(
+        "El alumno no tiene clases programadas para este día de la semana.",
+      );
+    }
+
+    // Asigna el número de módulo según la secuencia 
+    targetModules = schedulesForDay.map((_, index) => index + 1);
   }
 
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
+  try {
+    const recordsToInsert = targetModules.map((moduleNum) => {
+      return queryRunner.manager.create(Justifications, {
+        studentId,
+        reason,
+        justificationDate,
+        moduleNumber: moduleNum,
+        registeredBy: { id: registeredBy } as any,
+        isActive: true,
+      });
+    });
+
+    const savedRecords = await queryRunner.manager.save(
+      Justifications,
+      recordsToInsert,
+    );
+
+    await queryRunner.commitTransaction();
+
+    return {
+      message: modules?.length
+        ? "Justificante registrado para los módulos seleccionados."
+        : "Justificante registrado para todo el día.",
+      totalRecords: savedRecords.length,
+      data: savedRecords,
+    };
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    throw new BadRequestException(
+      `Error al guardar justificante: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  } finally {
+    await queryRunner.release();
+  }
+}
+
+//buscar justificante por id
   async findJustificationById(id: string) {
     const justification = await this.justificationsRepository.findOne({
-      where: { id },
+      where: { id, isActive:true},
     });
     if (!justification) {
       throw new NotFoundException("Justificante no encontrado.");
     }
     return justification;
   }
-
+//actualizar justificante
   async updateJustification(id: string, dto: UpdateJustificationDto) {
     const justification = await this.findJustificationById(id);
+  const { registeredBy, ...rest } = dto;
+  
+  Object.assign(justification, rest);
 
-    Object.assign(justification, dto);
-
-    await this.justificationsRepository.save(justification);
-    return {
-      message: "Justificante actualizado correctamente.",
-      justification,
-    };
+  if (registeredBy){
+    justification.registeredBy = {id: registeredBy} as any;
   }
 
+  await this.justificationsRepository.save(justification);
+  return {
+    message: 'justificante actualizado correctamente.',
+    justification,
+  };
+  }
+//soft delete
   async removeJustification(id: string) {
     const justification = await this.findJustificationById(id);
 
@@ -305,14 +317,14 @@ export class AttendanceService {
       message: "Justificante eliminado correctamente.",
     };
   }
-
+//buscar por id del estudiante
   async findJustificationsByStudentId(studentId: string) {
     return this.justificationsRepository.find({
       where: { studentId, isActive: true },
       order: { justificationDate: "DESC" },
     });
   }
-
+//busqueda por nombre del estudiante
   async findJustificationsByStudentName(searchTerm: string) {
     if (!searchTerm || searchTerm.trim() === "") {
       return [];
