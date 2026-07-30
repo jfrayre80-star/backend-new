@@ -1,11 +1,4 @@
-import { Type } from "class-transformer";
 import {IsNotEmpty, IsUUID, IsString, IsEnum, IsOptional, IsBoolean, IsArray, ValidateNested, IsInt, Min, Max} from "class-validator";
-
-export class StartAttendanceDto {
-    @IsNotEmpty()
-    @IsUUID()
-    scheduleId: string;
-}
 
 export class SyncGateLogItemDto {
   @IsNotEmpty()
@@ -27,5 +20,3 @@ export class SyncGateLogItemDto {
   @IsBoolean()
   isExitReturn?: boolean;
 }
-
-

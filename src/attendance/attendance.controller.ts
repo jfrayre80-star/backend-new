@@ -1,6 +1,6 @@
 import { Body, Controller, Post, Req, UseGuards, Get, Param, Query } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
-import { StartAttendanceDto } from './dto/attendance.dto';
+import { StartAttendanceDto } from './dto/start-attendance.dto';
 import { ScanQrDto } from './dto/scan-qr.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';

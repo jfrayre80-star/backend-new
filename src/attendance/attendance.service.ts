@@ -1,15 +1,11 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  BadRequestException,
+import {ConflictException, Injectable, NotFoundException, BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { ILike, Repository, DataSource } from "typeorm";
 import { randomBytes } from "crypto";
 import { Schedules } from "../academic/Schedules";
 import { QrCodes } from "./QrCodes";
-import { StartAttendanceDto } from "./dto/attendance.dto";
+import { StartAttendanceDto } from "./dto/start-attendance.dto";
 import { Students } from "../users/Students";
 import { ScanQrDto } from "./dto/scan-qr.dto";
 import { AttendanceRecords } from "./AttendanceRecords";
@@ -19,6 +15,8 @@ import { AccessLogs } from "./AccessLogs";
 import { CreateAccessLogDto } from "./dto/create-access-log.dto";
 import { UpdateJustificationDto } from "./dto/update-justification.dto";
 import { GroupEnrollments } from "../academic/GroupEnrollments";
+import { diff } from "util";
+import { ManualAttendanceDto } from "./dto/manual-attendance.dto";
 
 const QR_EXPIRATION_TIME = 30 * 1000;
 const LATE_TOLERANCE_MINUTES = 10;
@@ -49,43 +47,76 @@ export class AttendanceService {
 
     private readonly dataSource: DataSource,
   ) {}
+//para encontrar el schedule activo
+    private async findActiveSchedule(scheduleId: string): Promise<Schedules> {
+  const schedule = await this.schedulesRepository.findOne({
+    where: { 
+      id: scheduleId, 
+      isActive: true 
+    },
+    relations: { 
+      teacher: true,
+      subject: true,
+    },
+  });
+
+  if (!schedule) {
+    throw new NotFoundException(
+      "El horario especificado no existe o se encuentra inactivo.",
+    );
+  }
+
+  return schedule;
+}
+  //encontrar solo los qr activos 
+private async findActiveQr(scheduleId: string): Promise<QrCodes | null> {
+  return this.qrCodesRepository.findOne({
+    where: {
+      schedule: { id: scheduleId },
+      isActive: true,
+    },
+    order: { 
+      createdAt: "DESC" 
+    },
+  });
+}
+//generar el hash 
+private generateQrHash(): string {
+  return randomBytes(32).toString("hex");
+}
 
   // ASISTENCIAS & QR
 
-  async start(dto: StartAttendanceDto) {
-    const schedule = await this.findActiveSchedule(dto.scheduleId);
+//iniciar pase de asistencia
+  async start(dto: StartAttendanceDto){
+const schedule = await this.findActiveSchedule(dto.scheduleId);
 
-    if (!schedule.teacher) {
-      throw new ConflictException(
-        "El horario no tiene un profesor asignado.",
-      );
-    }
+if (!schedule.teacher){
+  throw new ConflictException('El horario no tiene un profesor asignado.');
+}
 
-    const activeQr = await this.findActiveQr(dto.scheduleId);
+const activeQr= await this.findActiveQr(dto.scheduleId);
 
-    if (activeQr && activeQr.expiresAt > new Date()) {
-      throw new ConflictException(
-        "Ya existe un código QR activo para este horario y aún no ha caducado.",
-      );
-    }
+if (activeQr && activeQr.expiresAt>new Date()){
 
-    if (activeQr) {
-      activeQr.isActive = false;
-      await this.qrCodesRepository.save(activeQr);
-    }
+activeQr.isActive = false;
+await this.qrCodesRepository.save(activeQr);
+}
 
-    const qr = this.qrCodesRepository.create({
-      hashValue: this.generateQrHash(),
-      schedule,
-      teacher: schedule.teacher,
-      expiresAt: new Date(Date.now() + QR_EXPIRATION_TIME),
-      isActive: true,
-    });
+const qr = this.qrCodesRepository.create({
+
+  hashValue:this.generateQrHash(),
+  schedule,
+  teacher: schedule.teacher,
+  expiresAt: new Date(Date.now() + QR_EXPIRATION_TIME),
+  isActive:true,
+});
+
 
     await this.qrCodesRepository.save(qr);
-
+    
     return {
-      message: "QR generado exitosamente.",
+      message:'QR generado exitosamente.',
       qrId: qr.id,
       scheduleId: schedule.id,
       hash: qr.hashValue,
@@ -93,99 +124,252 @@ export class AttendanceService {
     };
   }
 
-  private generateQrHash(): string {
-    return randomBytes(32).toString("hex");
+//escaneo de qr
+async scanQr(userIdFromToken: string, dto: ScanQrDto){
+const student = await this.studentsRepository.findOne({
+  where: {userId: userIdFromToken},
+});
+
+if(!student){
+  throw new NotFoundException('Estudiante no encontrado.');
+}
+
+const qr = await this.qrCodesRepository.findOne({
+  where:{hashValue:dto.qrHash, isActive:true},
+  relations: {schedule: true},
+});
+
+if (!qr || qr.expiresAt < new Date()){
+  throw new BadRequestException ('El QR no es válido o ya ha caducado.');
+}
+
+
+const schedule = qr.schedule;
+//fomatear la fecha 
+const now = new Date();
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, "0");
+const day = String(now.getDate()).padStart(2, "0");
+const todayStr = `${year}-${month}-${day}`;
+
+const existingRecord = await this.attendanceRecordsRepository.findOne({
+where: {
+  studentId: student.id, 
+  scheduleId: schedule.id, 
+  recordedDate: todayStr
+},
+});
+
+if (!existingRecord){
+  throw new ConflictException('Ya has registrado tu asistencia para esta clase el día de hoy.');
+}
+
+const [startHour, startMinute]= schedule.startTime.split(":").map(Number);
+const classStartTime = new Date();
+classStartTime.setHours(startHour, startMinute, 0, 0);
+
+const diffMinutes = (now.getTime() - classStartTime.getTime()) / (1000*60);
+
+const status: "present" | "late" = diffMinutes > LATE_TOLERANCE_MINUTES ? "late" : "present";
+
+const record = this.attendanceRecordsRepository.create({
+studentId:student.id,
+scheduleId: schedule.id,
+status,
+qrHash: dto.qrHash,
+scanTimestamp: now,
+recordedDate: todayStr,
+isOffline: false,
+isAutoClosed: false,
+auditTrail:{
+  deviceId: dto.deviceId || "desconocido",
+  scannedAt: now.toISOString(),
+},
+});
+
+await this.attendanceRecordsRepository.save(record);
+
+return {
+  message: 
+  status === "present"
+  ? "Asistencia registrada correctamente."
+  : "Asistencia registrada con retardo.",
+  status,
+  studentId:student.id,
+  scheduleId:schedule.id,
+  recordedDate: todayStr,
+};
+
+}
+
+//Cerrar pase de lista
+async closeAttendance(scheduleId:string, recordedByUserId?: string){
+  const schedule = await this.schedulesRepository.findOne({
+    where: {id: scheduleId, isActive: true},
+    relations: {group: true},
+  });
+
+  if (!schedule){
+    throw new NotFoundException ('Horario no encontrado o inactivo.');
   }
+  
+  await this.qrCodesRepository.update(
+    {schedule: {id: scheduleId}, isActive: true},
+    {isActive: false},
+  );
 
-  private async findActiveSchedule(scheduleId: string): Promise<Schedules> {
-    const schedule = await this.schedulesRepository.findOne({
-      where: {
-        id: scheduleId,
-        isActive: true,
-      },
-      relations: {
-        teacher: true,
-      },
-    });
 
-    if (!schedule) {
-      throw new NotFoundException("Horario no encontrado o inactivo.");
-    }
-    return schedule;
-  }
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDay()).padStart(2, "0");
+  const todayStr = `${year}-${month}-${day}`;
 
-  private async findActiveQr(scheduleId: string): Promise<QrCodes | null> {
-    return this.qrCodesRepository.findOne({
-      where: {
-        schedule: {
-          id: scheduleId,
-        },
-        isActive: true,
-      },
-      order: {
-        createdAt: "DESC",
-      },
-    });
-  }
+const enrollments = await this.groupEnrollmentRepo.find({
+    where: { groupId: schedule.groupId },
+  });
 
-  async scanQr(studentId: string, dto: ScanQrDto) {
-    const student = await this.studentsRepository.findOne({
-      where: { userId: studentId },
-    });
-
-    if (!student) {
-      throw new NotFoundException("Estudiante no encontrado.");
-    }
-
-    const qr = await this.qrCodesRepository.findOne({
-      where: { hashValue: dto.qrHash, isActive: true },
-      relations: { schedule: true },
-    });
-
-    if (!qr || qr.expiresAt < new Date()) {
-      throw new BadRequestException(
-        "El código QR no es válido o ha caducado.",
-      );
-    }
-
-    const scheduleId = qr.schedule.id;
-    const today = new Date().toISOString().split("T")[0];
-
-    const existingRecord = await this.attendanceRecordsRepository.findOne({
-      where: { studentId: student.id, scheduleId, recordedDate: today },
-    });
-
-    if (existingRecord) {
-      throw new ConflictException(
-        "El estudiante ya ha registrado asistencia para este horario hoy.",
-      );
-    }
-
-    const qrCreatedAt = qr.createdAt
-      ? new Date(qr.createdAt).getTime()
-      : Date.now();
-    const diffMinutes = (Date.now() - qrCreatedAt) / (1000 * 60);
-
-    const status: "present" | "late" =
-      diffMinutes > LATE_TOLERANCE_MINUTES ? "late" : "present";
-
-    const record = this.attendanceRecordsRepository.create({
-      studentId: student.id,
-      scheduleId,
-      status,
-      qrHash: dto.qrHash,
-      scanTimestamp: new Date(),
-      recordedDate: today,
-    });
-
-    await this.attendanceRecordsRepository.save(record);
-
+  if (enrollments.length===0){
     return {
-      message: "Asistencia registrada exitosamente.",
-      studentId: student.id,
-      scheduleId,
+      message: "No hay alumnos inscritos en el grupo asignado a este horario.",
+      absenteesCount: 0,
     };
   }
+  const allStudentsIds = enrollments.map((e)=>e.studentId);
+
+
+
+  const existingRecords = await this.attendanceRecordsRepository.find({
+    where:{
+      scheduleId:schedule.id,
+      recordedDate: todayStr,
+    },
+  });
+
+const registeredStudentIds = new Set(
+    existingRecords.map((record) => record.studentId),
+  );
+
+  const absentStudentIds= allStudentsIds.filter(
+    (studenId)=> !registeredStudentIds.has(studenId),
+  );
+
+  if (absentStudentIds.length === 0){
+    return {
+      message : "Cierre completado. Todos los alumnos registraron asistencia.",
+      absenteesCount: 0,
+    };
+  }
+
+  const absentRecords = absentStudentIds.map((studentId)=>{
+    return this.attendanceRecordsRepository.create({
+      studentId,
+      scheduleId: schedule.id,
+      status: "absent",
+      recordedDate: todayStr,
+      isAutoClosed: true,
+      recordedBy: recordedByUserId ? ({id: recordedByUserId} as any): null,
+      auditTrail: {
+        reason: 'Cierre Automático de clase - QR no escaneado.',
+        closedAt: now.toISOString(),
+      },
+    });
+  });
+
+  await this.attendanceRecordsRepository.save(absentRecords);
+
+  return {
+    message: "Lista de asistencia cerrada correctamente.",
+    totalStudents: allStudentsIds.length,
+    presentOrLateCount: registeredStudentIds.size,
+    absenteesCount: absentRecords.length,
+    recordedDate: todayStr,
+  };
+}
+
+//pase de lista manual (o para cambiar el estado de la asistencia)
+async updateStudentAttendanceManual(
+  dto: ManualAttendanceDto,
+  teacherUserId: string,
+) {
+  const { studentId, scheduleId, status, reason } = dto;
+
+  const student = await this.studentsRepository.findOne({
+    where: { id: studentId },
+  });
+
+  if (!student) {
+    throw new NotFoundException("Estudiante no encontrado.");
+  }
+
+  const schedule = await this.schedulesRepository.findOne({
+    where: { id: scheduleId, isActive: true },
+  });
+
+  if (!schedule) {
+    throw new NotFoundException("Horario no encontrado o inactivo.");
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const todayStr = `${year}-${month}-${day}`;
+
+  let record = await this.attendanceRecordsRepository.findOne({
+    where: {
+      studentId: student.id,
+      scheduleId: schedule.id,
+      recordedDate: todayStr,
+    },
+  });
+
+  const isNewRecord = !record;
+
+  if (record) {
+    const previousStatus = record.status;
+    record.status = status;
+    record.recordedBy = { id: teacherUserId } as any;
+    record.auditTrail = {
+      ...(record.auditTrail || {}),
+      updatedManuallyAt: now.toISOString(),
+      updatedBy: teacherUserId,
+      previousStatus,
+      newStatus: status,
+      reason: reason || "Cambio manual por el profesor",
+    };
+  } else {
+    record = this.attendanceRecordsRepository.create({
+      studentId: student.id,
+      scheduleId: schedule.id,
+      status,
+      recordedDate: todayStr,
+      scanTimestamp: now,
+      isOffline: false,
+      isAutoClosed: false,
+      recordedBy: { id: teacherUserId } as any,
+      auditTrail: {
+        createdManuallyAt: now.toISOString(),
+        createdBy: teacherUserId,
+        reason: reason || "Pase de lista manual por el profesor",
+      },
+    });
+  }
+
+  await this.attendanceRecordsRepository.save(record);
+
+  return {
+    message: isNewRecord
+      ? "Asistencia registrada manualmente."
+      : "Estatus de asistencia actualizado correctamente.",
+    recordId: record.id,
+    studentId: student.id,
+    scheduleId: schedule.id,
+    status: record.status,
+    recordedDate: todayStr,
+  };
+}
+
 
   // JUSTIFICATIONS
 //crear justificante
