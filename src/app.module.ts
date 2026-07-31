@@ -32,6 +32,7 @@ import { DisciplinaryReportsModule } from './evaluation/disciplinary-reports.mod
 import { ComponentCriteriaModule } from './evaluation/component-criteria.module';
 import { ComponentScoresModule } from './evaluation/component-scores.module';
 import { CriterionScoresModule } from './evaluation/criterion-scores.module';
+import { CompanyTutorsModule } from './dual/company-tutors.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { CriterionScoresModule } from './evaluation/criterion-scores.module';
     ComponentCriteriaModule,
     ComponentScoresModule,
     CriterionScoresModule,
+    CompanyTutorsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
