@@ -1,4 +1,4 @@
-import {ConflictException, Injectable, NotFoundException, BadRequestException,
+import {ConflictException, Injectable, NotFoundException, BadRequestException, ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { ILike, Repository, DataSource } from "typeorm";
@@ -160,7 +160,7 @@ where: {
 },
 });
 
-if (!existingRecord){
+if (existingRecord){
   throw new ConflictException('Ya has registrado tu asistencia para esta clase el día de hoy.');
 }
 
@@ -222,7 +222,7 @@ async closeAttendance(scheduleId:string, recordedByUserId?: string){
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDay()).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
   const todayStr = `${year}-${month}-${day}`;
 
 const enrollments = await this.groupEnrollmentRepo.find({
@@ -369,9 +369,217 @@ async updateStudentAttendanceManual(
     recordedDate: todayStr,
   };
 }
+//porcentaje asistencia (alumnos y padres)
+async getStudentMetrics(
+  studentId: string,
+  currentUser: { id: string; role: string },
+  scheduleId?: string,
+) {
+
+  if (currentUser.role === 'parent' || currentUser.role === 'parent') {
+    const isMyChild = await this.studentsRepository.findOne({
+      where: {
+        id: studentId,
+        parentId: currentUser.id,
+      },
+    });
+
+    if (!isMyChild) {
+      throw new ForbiddenException(
+        'Acceso denegado. Este alumno no está vinculado a tu cuenta.',
+      );
+    }
+  }
+
+  if (currentUser.role === 'student') {
+    const isSelf = await this.studentsRepository.findOne({
+      where: { id: studentId, userId: currentUser.id },
+    });
+
+    if (!isSelf) {
+      throw new ForbiddenException(
+        'Solo puedes consultar tu propio historial de asistencia.',
+      );
+    }
+  }
+
+  
+const student = await this.studentsRepository.findOne({
+  where: {id: studentId},
+});
+
+if (!student){
+  throw new NotFoundException('Estudiante no encontrado.');
+}
+
+const whereCondition: any = {studentId: student.id};
+if(scheduleId){
+  whereCondition.scheduleId= scheduleId;
+}
+
+const records = await this.attendanceRecordsRepository.find({
+  where: whereCondition,
+});
+
+const totalClasses = records.length;
+
+if (totalClasses===0){
+  return{
+    studentId: student.id,
+    attendancePercentage: 0,
+    summary: {
+      totalClasses: 0,
+      present: 0,
+      late: 0,
+      absent: 0,
+      justifiedAbsence: 0,
+    },
+  };
+}
+
+let presentCount = 0;
+let lateCount = 0;
+let absentCount = 0;
+let justifiedCount = 0;
+
+records.forEach((r)=>{
+  switch (r.status){
+    case "present":
+      presentCount++;
+      break;
+
+    case "late":
+      lateCount++;
+      break;
+    
+    case "absent":
+      absentCount++;
+      break;
+    
+    case "justified_absence":
+      justifiedCount++;
+      break;
+  }
+});
+
+const effectiveClasses = totalClasses - justifiedCount;
+const attendedClasses = presentCount + lateCount;
+
+const attendancePercentage = effectiveClasses > 0 ? Number(((attendedClasses/effectiveClasses)*100).toFixed(2)):100;
+
+return {
+  studentId:student.id,
+  attendancePercentage, 
+  statusAlert:
+  attendancePercentage < 80
+  ? "ALERTA_RIESGO_FALTAS"
+  : "ASISTENCIA_REGULAR",
+  summary: {
+    totalClasses,
+    present: presentCount,
+    late: lateCount,
+    absent: absentCount,
+    justifiedAbsence: justifiedCount,
+  },
+};
+}
+
+//lista en tiempo real para el profe (quien y quien va tomando asistencia)
+async getClassAttendanceToday(scheduleId:string){
+  const schedule = await this.schedulesRepository.findOne({
+    where: {id: scheduleId, isActive:true},
+  });
+
+if (!schedule){
+  throw new NotFoundException('Horario no encontrado.');
+}
+
+const now = new Date();
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, "0");
+const day = String(now.getDate()).padStart(2, "0");
+const todayStr = `${year}-${month}-${day}`;
 
 
-  // JUSTIFICATIONS
+const enrollments = await this.groupEnrollmentRepo.find({
+  where: {groupId: schedule.groupId},
+  relations: {student: {user: true} },
+});
+const existingRecords = await this.attendanceRecordsRepository.find({
+  where : {scheduleId, recordedDate: todayStr},
+});
+
+const recordMap = new Map<string, AttendanceRecords>();
+existingRecords.forEach((rec) => {
+  recordMap.set(rec.studentId, rec);
+});
+
+const studentsList = enrollments.map((e)=>{
+  const student = e.student;
+  const record = recordMap.get(e.studentId);
+
+return {
+  studentId: student.id,
+  erollmentNumber: student.enrollmentNumber || "N/A",
+  fullName: student.user
+  ? `${student.user.firstName} ${student.user.lastName}`
+  : 'Alumno',
+  status: record ? record.status : "pending",
+  scanTimeStamp: record?.scanTimestamp || null,
+  isAutoclosed: record?.isAutoClosed || false,
+};
+});
+
+return {
+  scheduleId,
+  recordedDate: todayStr,
+  totalEnrolled: enrollments.length,
+  scannedCount: existingRecords.length,
+  students: studentsList,
+};
+}
+
+//lista del grupo con porcentaje de asistencia (profe)
+
+async getGroupStudentsWithAttendanceRate(groupId: string, scheduleId?: string){
+const enrollments = await this.groupEnrollmentRepo.find({
+  where: {groupId},
+  relations: {student: {user: true}},
+});
+
+
+if (enrollments.length===0){
+  return {groupId, totalStudents: 0, students: []};
+}
+
+const studentsWithRate = await Promise.all(
+  enrollments.map(async (e)=>{
+    const student = e.student;
+    const metrics = await this.getStudentMetrics(student.id, { id: '', role: 'teacher' }, scheduleId);
+
+    return{
+      studentId: student.id,
+      enrollmentNumber: student.enrollmentNumber || "N/A",
+      fullName: student.user
+      ? `${student.user.firstName} ${student.user.lastName}`
+      : "Alumno",
+      attendancePercentage: metrics.attendancePercentage,
+      statusAlert: metrics.statusAlert,
+      summary: metrics.summary,
+    };
+  }),
+);
+
+return {
+  groupId,
+  totalStudents: enrollments.length,
+  students: studentsWithRate,
+};
+}
+
+
+
+// JUSTIFICATIONS
 //crear justificante
 async createJustification(dto: CreateJustificationDto) {
   const { studentId, registeredBy, justificationDate, reason, modules } = dto;
@@ -440,6 +648,12 @@ async createJustification(dto: CreateJustificationDto) {
     const savedRecords = await queryRunner.manager.save(
       Justifications,
       recordsToInsert,
+    );
+
+    await queryRunner.manager.update(
+      AttendanceRecords,
+      {studentId, recordedDate: justificationDate},
+      {status: 'justified_absence'}
     );
 
     await queryRunner.commitTransaction();
@@ -571,11 +785,11 @@ async createJustification(dto: CreateJustificationDto) {
 
   // ACCESS LOGS
 
-  async createAccesLog(dto: CreateAccessLogDto) {
+  async createAccessLog(dto: CreateAccessLogDto) {
     const log = this.accessLogsRepository.create({
       studentId: dto.studentId,
       eventType: dto.eventType,
-      scannedAt: dto.scannedAt,
+      scannedAt: new Date(dto.scannedAt),
       deviceTerminalId: dto.deviceTerminalId,
       isExitReturn: dto.isExitReturn,
       isSynced: true,
@@ -630,4 +844,28 @@ async createJustification(dto: CreateJustificationDto) {
       },
     });
   }
+
+//offline operations
+// Sincronización individual de registros offline (preservando el tiempo original)
+async syncSingleAccessLog(dto: CreateAccessLogDto) {
+  const log = this.accessLogsRepository.create({
+    studentId: dto.studentId,
+    eventType: dto.eventType,
+    scannedAt: new Date(dto.scannedAt), 
+    deviceTerminalId: dto.deviceTerminalId,
+    isExitReturn: dto.isExitReturn ?? false,
+    isSynced: true, 
+    syncedAt: new Date(), 
+  });
+
+  await this.accessLogsRepository.save(log);
+
+  return {
+    success: true,
+    message: "Registro offline sincronizado exitosamente.",
+    logId: log.id,
+  };
+}
+
+
 }

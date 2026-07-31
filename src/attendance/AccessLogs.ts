@@ -61,3 +61,5 @@ export class AccessLogs {
   @JoinColumn([{ name: "student_id", referencedColumnName: "id" }])
   student: Students;
 }
+
+
