@@ -376,7 +376,7 @@ async getStudentMetrics(
   scheduleId?: string,
 ) {
 
-  if (currentUser.role === 'parent' || currentUser.role === 'parent') {
+  if (currentUser.role === 'parent') {
     const isMyChild = await this.studentsRepository.findOne({
       where: {
         id: studentId,
