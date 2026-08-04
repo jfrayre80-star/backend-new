@@ -10,8 +10,9 @@ export class CreateNoticeDto {
   @IsNotEmpty()
   content: string;
 
+  @IsOptional()
   @IsUUID()
-  createdById: string;
+  createdById?: string;
 
   @IsOptional()
   @IsEnum(['admin', 'teacher', 'student', 'parent'])
