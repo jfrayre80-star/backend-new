@@ -15,8 +15,9 @@ import { AccessLogs } from "./AccessLogs";
 import { CreateAccessLogDto } from "./dto/create-access-log.dto";
 import { UpdateJustificationDto } from "./dto/update-justification.dto";
 import { GroupEnrollments } from "../academic/GroupEnrollments";
-import { diff } from "util";
 import { ManualAttendanceDto } from "./dto/manual-attendance.dto";
+import { Parents } from '../users/Parents';
+
 
 const QR_EXPIRATION_TIME = 30 * 1000;
 const LATE_TOLERANCE_MINUTES = 10;
@@ -44,6 +45,9 @@ export class AttendanceService {
 
     @InjectRepository(AccessLogs)
     private readonly accessLogsRepository: Repository<AccessLogs>,
+    
+    @InjectRepository(Parents)
+    private readonly parentsRepository: Repository<Parents>,
 
     private readonly dataSource: DataSource,
   ) {}
@@ -145,6 +149,20 @@ if (!qr || qr.expiresAt < new Date()){
 
 
 const schedule = qr.schedule;
+
+const enrollment = await this.groupEnrollmentRepo.findOne({
+  where: {
+    studentId: student.id,
+    groupId: schedule.groupId,
+  },
+});
+
+if (!enrollment) {
+  throw new ForbiddenException(
+    'No estás inscrito en el grupo de este horario.',
+  );
+}
+
 //fomatear la fecha 
 const now = new Date();
 const year = now.getFullYear();
@@ -376,14 +394,21 @@ async getStudentMetrics(
   scheduleId?: string,
 ) {
 
-  if (currentUser.role === 'parent') {
+if (currentUser.role === 'parent') {
+    const parent = await this.parentsRepository.findOne({
+    where: { user: { id: currentUser.id } },
+    });
+    if (!parent) {
+      throw new ForbiddenException(
+        'Acceso denegado. No se encontró registro de padre vinculado.',
+      );
+    }
     const isMyChild = await this.studentsRepository.findOne({
       where: {
         id: studentId,
-        parentId: currentUser.id,
+        parentId: parent.id,  // ← parents.id contra parents.id ✓
       },
     });
-
     if (!isMyChild) {
       throw new ForbiddenException(
         'Acceso denegado. Este alumno no está vinculado a tu cuenta.',

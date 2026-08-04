@@ -86,17 +86,17 @@ export class AttendanceController {
   findAllJustifications(@Query('date') date?: string) {
     return this.attendanceService.findAllJustifications(date);
   }
+ //obtencion de justificante por id del alumno
+@Roles('admin', 'teacher', 'student', 'parent')
+  @Get('justifications/student/:studentId')
+  getStudentJustifications(@Param('studentId') studentId: string) {
+    return this.attendanceService.findJustificationsByStudentId(studentId);
+  }
   //obtencion de justificante por nombre del alumno para el admin y del docente
 @Roles('admin', 'teacher')
   @Get('justifications/search/by-student')
   searchJustificationsByStudentName(@Query('name') name: string) {
     return this.attendanceService.findJustificationsByStudentName(name);
-  }
-  //obtencion de justificante por id del alumno
-@Roles('admin', 'teacher', 'student', 'parent')
-  @Get('justifications/student/:studentId')
-  getStudentJustifications(@Param('studentId') studentId: string) {
-    return this.attendanceService.findJustificationsByStudentId(studentId);
   }
   //obtencion de justificante por id para el admin y del docente
 @Roles('admin', 'teacher')
