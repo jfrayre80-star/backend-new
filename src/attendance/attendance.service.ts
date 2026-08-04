@@ -178,6 +178,7 @@ export class AttendanceService {
       qrHash: dto.qrHash,
       scanTimestamp: now,
       recordedDate: todayStr,
+      recordedBy: { id: userIdFromToken } as any,
       isOffline: false,
       isAutoClosed: false,
       auditTrail: {
