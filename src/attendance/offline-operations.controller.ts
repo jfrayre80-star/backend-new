@@ -4,6 +4,7 @@ import { CreateOfflineOperationDto, UpdateOfflineOperationDto } from './dto/offl
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { Req } from '@nestjs/common';
 
 @Controller('offline-operations')
 export class OfflineOperationsController {
@@ -50,4 +51,11 @@ export class OfflineOperationsController {
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.offlineOperationsService.remove(id);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'student', 'teacher')
+@Post('sync')
+sync(@Req() req: any, @Body() dto: CreateOfflineOperationDto) {
+  return this.offlineOperationsService.sync(dto, req.user.id);
+}
 }
