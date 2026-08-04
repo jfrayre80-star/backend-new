@@ -47,8 +47,6 @@ create(dto: CreateOfflineOperationDto) {
     }),
   );
 }
-
-
 async sync(dto: CreateOfflineOperationDto, userId: string) {
   const existing = await this.offlineRepo.findOne({
     where: { localId: dto.localId, entityType: dto.entityType },
