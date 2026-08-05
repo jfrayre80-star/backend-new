@@ -33,6 +33,7 @@ import { ComponentCriteriaModule } from './evaluation/component-criteria.module'
 import { ComponentScoresModule } from './evaluation/component-scores.module';
 import { CriterionScoresModule } from './evaluation/criterion-scores.module';
 import { CompanyTutorsModule } from './dual/company-tutors.module';
+import { DualMonthlySubjectsModule } from './dual/dual-monthly-subjects.module';
 import { SyncQueueModule } from './attendance/sync-queue.module';
 import { OfflineOperationsModule } from './attendance/offline-operations.module';
 import { NoticesModule } from './notifications/notices.module';
@@ -81,6 +82,7 @@ import { AlertsModule } from './notifications/alerts.module';
     ComponentScoresModule,
     CriterionScoresModule,
     CompanyTutorsModule,
+    DualMonthlySubjectsModule,
     SyncQueueModule,
     OfflineOperationsModule,
     NoticesModule,
