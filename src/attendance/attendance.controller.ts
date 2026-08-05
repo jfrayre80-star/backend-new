@@ -87,10 +87,10 @@ export class AttendanceController {
     return this.attendanceService.findAllJustifications(date);
   }
  //obtencion de justificante por id del alumno
-@Roles('admin', 'teacher', 'student', 'parent')
+  @Roles('admin', 'teacher', 'student', 'parent')
   @Get('justifications/student/:studentId')
-  getStudentJustifications(@Param('studentId') studentId: string) {
-    return this.attendanceService.findJustificationsByStudentId(studentId);
+  getStudentJustifications(@Param('studentId') studentId: string, @Req() req: any) {
+    return this.attendanceService.findJustificationsByStudentId(studentId, req.user);
   }
   //obtencion de justificante por nombre del alumno para el admin y del docente
 @Roles('admin', 'teacher')
@@ -127,7 +127,7 @@ export class AttendanceController {
   }
 
   // Endpoint especial para la sincronización offline
-  @Roles('admin')
+  @Roles('admin', 'teacher', 'student')
   @Post('access-logs/sync')
   syncSingleAccessLog(@Body() dto: CreateAccessLogDto) {
     return this.attendanceService.syncSingleAccessLog(dto);

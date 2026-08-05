@@ -64,4 +64,9 @@ export class NotificationQueueController {
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.notificationQueueService.remove(id);
   }
+    @Roles('admin')
+  @Patch(':id/process')
+  process(@Param('id', ParseUUIDPipe) id: string) {
+    return this.notificationQueueService.process(id);
+  }
 }

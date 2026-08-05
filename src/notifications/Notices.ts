@@ -60,7 +60,7 @@ export class Notices {
   @JoinColumn([{ name: "created_by", referencedColumnName: "id" }])
   createdBy: Users;
 
-  @ManyToOne(() => Groups, (groups) => groups.notices)
+  @ManyToOne(() => Groups, (groups) => groups.notices, { nullable: true })
   @JoinColumn([{ name: "target_group_id", referencedColumnName: "id" }])
-  targetGroup: Groups;
+  targetGroup: Groups | null;
 }

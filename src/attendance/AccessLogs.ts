@@ -23,7 +23,7 @@ export class AccessLogs {
   @Column("timestamp with time zone", { name: "scanned_at" })
   scannedAt: Date;
 
-  @Column("character varying", { name: "device_terminal_id", length: 100 })
+  @Column("character varying", { name: "device_terminal_id", length: 100, nullable: true, default: () => "'manual'" })
   deviceTerminalId: string;
 
   @Column("boolean", {
