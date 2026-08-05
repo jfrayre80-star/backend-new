@@ -81,6 +81,9 @@ export class AttendanceRecords {
   @Column("jsonb", { name: "audit_trail", nullable: true })
   auditTrail: object | null;
 
+  @Column("uuid", { name: "recorded_by", nullable: true })
+  recordedById: string | null;
+
   @ManyToOne(() => Users, (users) => users.attendanceRecords)
   @JoinColumn([{ name: "recorded_by", referencedColumnName: "id" }])
   recordedBy: Users;
@@ -92,4 +95,5 @@ export class AttendanceRecords {
   @ManyToOne(() => Students, (students) => students.attendanceRecords)
   @JoinColumn([{ name: "student_id", referencedColumnName: "id" }])
   student: Students;
+
 }

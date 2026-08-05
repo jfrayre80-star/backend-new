@@ -8,7 +8,9 @@ import { AttendanceRecords } from './AttendanceRecords';
 import { QrCodes } from './QrCodes';
 import { Schedules } from '../academic/Schedules';
 import {Students} from "../users/Students";
-
+import {Justifications} from "./Justifications";
+import { AccessLogs } from './AccessLogs';
+import { GroupEnrollments } from '../academic/GroupEnrollments';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -16,6 +18,9 @@ import {Students} from "../users/Students";
       QrCodes,
       Schedules,
       Students,
+      Justifications,
+      AccessLogs,
+      GroupEnrollments,
     ]),
   ],
   controllers: [AttendanceController],
