@@ -77,7 +77,7 @@ export class AttendanceController {
   @Roles('admin')
   @Post('justifications')
   createJustification(@Req() req: any, @Body() dto: CreateJustificationDto) {
-    dto.registeredBy = dto.registeredBy || req.user.id;
+    dto.registeredBy = req.user.id;
     return this.attendanceService.createJustification(dto);
   }
 //obtencion de todos los justificantes por parte del admin y del docente por filtro de fecha

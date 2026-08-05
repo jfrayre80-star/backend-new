@@ -5,9 +5,9 @@ export class CreateJustificationDto {
   @IsNotEmpty()
   studentId: string;
 
+  @IsOptional()
   @IsUUID()
-  @IsNotEmpty()
-  registeredBy: string; 
+  registeredBy?: string;
 
   @IsDateString()
   @IsNotEmpty()
