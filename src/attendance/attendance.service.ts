@@ -548,7 +548,8 @@ export class AttendanceService {
   async createJustification(dto: CreateJustificationDto) {
     const { studentId, registeredBy, justificationDate, reason, modules } = dto;
 
-    const [year, month, day] = justificationDate.split("-").map(Number);
+    const normalizedDate = justificationDate.slice(0, 10);
+    const [year, month, day] = normalizedDate.split("-").map(Number);
     const dateObj = new Date(year, month - 1, day);
     const jsDay = dateObj.getDay();
     const dayOfWeek = jsDay === 0 ? 7 : jsDay;
@@ -556,47 +557,29 @@ export class AttendanceService {
     let targetModules: number[] = [];
     let schedulesForDay: Schedules[] = [];
 
+    const enrollment = await this.groupEnrollmentRepo.findOne({
+      where: { studentId },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException("El estudiante no se encuentra inscrito en ningún grupo activo.");
+    }
+
+    schedulesForDay = await this.schedulesRepository.find({
+      where: {
+        groupId: enrollment.groupId,
+        dayOfWeek: dayOfWeek,
+        isActive: true,
+      },
+      order: { startTime: "ASC" },
+    });
+
     if (modules && modules.length > 0) {
       targetModules = Array.from(new Set(modules));
-
-      const enrollment = await this.groupEnrollmentRepo.findOne({
-        where: { studentId },
-      });
-
-      if (!enrollment) {
-        throw new NotFoundException("El estudiante no se encuentra inscrito en ningún grupo activo.");
-      }
-
-      schedulesForDay = await this.schedulesRepository.find({
-        where: {
-          groupId: enrollment.groupId,
-          dayOfWeek: dayOfWeek,
-          isActive: true,
-        },
-        order: { startTime: "ASC" },
-      });
     } else {
-      const enrollment = await this.groupEnrollmentRepo.findOne({
-        where: { studentId },
-      });
-
-      if (!enrollment) {
-        throw new NotFoundException("El estudiante no se encuentra inscrito en ningún grupo activo.");
-      }
-
-      schedulesForDay = await this.schedulesRepository.find({
-        where: {
-          groupId: enrollment.groupId,
-          dayOfWeek: dayOfWeek,
-          isActive: true,
-        },
-        order: { startTime: "ASC" },
-      });
-
       if (schedulesForDay.length === 0) {
         throw new NotFoundException("El alumno no tiene clases programadas para este día de la semana.");
       }
-
       targetModules = schedulesForDay.map((_, index) => index + 1);
     }
 
@@ -609,7 +592,7 @@ export class AttendanceService {
         return queryRunner.manager.create(Justifications, {
           studentId,
           reason,
-          justificationDate,
+          justificationDate: normalizedDate,
           moduleNumber: moduleNum,
           registeredBy: { id: registeredBy } as any,
           isActive: true,
@@ -620,16 +603,33 @@ export class AttendanceService {
 
       for (let i = 0; i < schedulesForDay.length; i++) {
         const moduleNum = i + 1;
-        if (targetModules.includes(moduleNum)) {
-          await queryRunner.manager.update(
-            AttendanceRecords,
-            {
-              studentId,
-              scheduleId: schedulesForDay[i].id,
-              recordedDate: justificationDate,
+        if (!targetModules.includes(moduleNum)) continue;
+
+        const existingRecord = await queryRunner.manager.findOne(AttendanceRecords, {
+          where: {
+            studentId,
+            scheduleId: schedulesForDay[i].id,
+            recordedDate: normalizedDate,
+          },
+        });
+
+        if (existingRecord) {
+          existingRecord.status = "justified_absence";
+          await queryRunner.manager.save(AttendanceRecords, existingRecord);
+        } else {
+          await queryRunner.manager.insert(AttendanceRecords, {
+            studentId,
+            scheduleId: schedulesForDay[i].id,
+            status: "justified_absence",
+            recordedDate: normalizedDate,
+            recordedById: registeredBy,
+            isOffline: false,
+            isAutoClosed: false,
+            auditTrail: {
+              reason,
+              justifiedAt: new Date().toISOString(),
             },
-            { status: "justified_absence" },
-          );
+          });
         }
       }
 
