@@ -13,29 +13,28 @@ export class NoticesController {
 
   @Roles('admin', 'teacher', 'student', 'parent')
   @Get()
-  findAll(@Query('targetRole') targetRole?: string) {
-    return this.noticesService.findAll(targetRole);
+  findAll(@Req() req: any, @Query('targetRole') targetRole?: string) {
+    return this.noticesService.findAll(req.user, targetRole);
   }
 
   @Roles('admin', 'teacher', 'student', 'parent')
   @Get('global')
-  findAllGlobal() {
-    return this.noticesService.findAllGlobal();
+  findAllGlobal(@Req() req: any) {
+    return this.noticesService.findAllGlobal(req.user);
   }
 
   @Roles('admin', 'teacher', 'student', 'parent')
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.noticesService.findOne(id);
+  findOne(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+    return this.noticesService.findOne(id, req.user);
   }
 
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
-@Post()
-create(@Req() req: any, @Body() dto: CreateNoticeDto) {
-  dto.createdById = req.user.id;
-  return this.noticesService.create(dto);
-}
+  @Roles('admin')
+  @Post()
+  create(@Req() req: any, @Body() dto: CreateNoticeDto) {
+    dto.createdById = req.user.id;
+    return this.noticesService.create(dto);
+  }
 
   @Roles('admin')
   @Patch(':id')

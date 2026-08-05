@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, ParseUUIDPipe, UseGuards, Req } from '@nestjs/common';
 import { AlertsService } from './alerts.service';
 import { CreateAlertDto, UpdateAlertDto } from './dto/alerts.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,20 +18,20 @@ export class AlertsController {
 
   @Roles('admin', 'parent')
   @Get('student/:studentId')
-  findByStudent(@Param('studentId', ParseUUIDPipe) studentId: string, @Query('unread') unread?: string) {
-    return this.alertsService.findByStudent(studentId, unread === 'true');
+  findByStudent(@Param('studentId', ParseUUIDPipe) studentId: string, @Req() req: any, @Query('unread') unread?: string) {
+    return this.alertsService.findByStudent(studentId, req.user, unread === 'true');
   }
 
   @Roles('admin', 'parent')
   @Get('parent/:parentId')
-  findByParent(@Param('parentId', ParseUUIDPipe) parentId: string, @Query('unread') unread?: string) {
-    return this.alertsService.findByParent(parentId, unread === 'true');
+  findByParent(@Param('parentId', ParseUUIDPipe) parentId: string, @Req() req: any, @Query('unread') unread?: string) {
+    return this.alertsService.findByParent(parentId, req.user, unread === 'true');
   }
 
   @Roles('admin', 'parent')
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.alertsService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.alertsService.findOne(id, req.user);
   }
 
   @Roles('admin')
@@ -42,19 +42,19 @@ export class AlertsController {
 
   @Roles('admin', 'parent')
   @Patch(':id')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAlertDto) {
-    return this.alertsService.update(id, dto);
+  update(@Param('id', ParseUUIDPipe) id: string, @Req() req: any, @Body() dto: UpdateAlertDto) {
+    return this.alertsService.update(id, dto, req.user);
   }
 
   @Roles('admin', 'parent')
   @Patch(':id/read')
-  markAsRead(@Param('id', ParseUUIDPipe) id: string) {
-    return this.alertsService.markAsRead(id);
+  markAsRead(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.alertsService.markAsRead(id, req.user);
   }
 
   @Roles('admin')
   @Delete(':id')
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.alertsService.remove(id);
+  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.alertsService.remove(id, req.user);
   }
 }

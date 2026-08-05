@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Notices } from './Notices';
 import { Users } from '../users/Users';
 import { Groups } from '../academic/Groups';
+import { Students } from '../users/Students';
+import { Parents } from '../users/Parents';
+import { Teachers } from '../users/Teachers';
+import { GroupEnrollments } from '../academic/GroupEnrollments';
+import { Schedules } from '../academic/Schedules';
 import { CreateNoticeDto, UpdateNoticeDto } from './dto/notices.dto';
+
+type CurrentUser = { id: string; role: string };
 
 @Injectable()
 export class NoticesService {
@@ -15,32 +22,82 @@ export class NoticesService {
     private readonly usersRepo: Repository<Users>,
     @InjectRepository(Groups)
     private readonly groupsRepo: Repository<Groups>,
+    @InjectRepository(Students)
+    private readonly studentsRepo: Repository<Students>,
+    @InjectRepository(Parents)
+    private readonly parentsRepo: Repository<Parents>,
+    @InjectRepository(Teachers)
+    private readonly teachersRepo: Repository<Teachers>,
+    @InjectRepository(GroupEnrollments)
+    private readonly enrollmentsRepo: Repository<GroupEnrollments>,
+    @InjectRepository(Schedules)
+    private readonly schedulesRepo: Repository<Schedules>,
   ) {}
 
-  findAll(targetRole?: string) {
-    const where: any = {};
-    if (targetRole) where.targetRole = targetRole;
-    return this.noticesRepo.find({
-      where,
+  private async getUserGroupIds(currentUser: CurrentUser): Promise<string[]> {
+    if (currentUser.role === 'admin') return [];
+    if (currentUser.role === 'student') {
+      const student = await this.studentsRepo.findOne({ where: { userId: currentUser.id } });
+      if (!student) return [];
+      const enrollments = await this.enrollmentsRepo.find({ where: { studentId: student.id } });
+      return enrollments.map((e) => e.groupId);
+    }
+    if (currentUser.role === 'parent') {
+      const parent = await this.parentsRepo.findOne({ where: { user: { id: currentUser.id } } });
+      if (!parent) return [];
+      const children = await this.studentsRepo.find({ where: { parentId: parent.id } });
+      const childIds = children.map((c) => c.id);
+      if (childIds.length === 0) return [];
+      const enrollments = await this.enrollmentsRepo.find({ where: { studentId: In(childIds) } });
+      return [...new Set(enrollments.map((e) => e.groupId))];
+    }
+    if (currentUser.role === 'teacher') {
+      const teacher = await this.teachersRepo.findOne({ where: { user: { id: currentUser.id } } });
+      if (!teacher) return [];
+      const schedules = await this.schedulesRepo.find({ where: { teacherId: teacher.id } });
+      return [...new Set(schedules.map((s) => s.groupId))];
+    }
+    return [];
+  }
+
+  private canView(notice: Notices, currentUser: CurrentUser, ownGroupIds: string[]): boolean {
+    if (currentUser.role === 'admin') return true;
+    if (notice.isGlobal) return true;
+    if (notice.targetRole && notice.targetRole !== currentUser.role) return false;
+    if (notice.targetGroup && !ownGroupIds.includes(notice.targetGroup.id)) return false;
+    return true;
+  }
+
+  async findAll(currentUser: CurrentUser, targetRole?: string) {
+    const notices = await this.noticesRepo.find({
+      where: targetRole ? ({ targetRole } as any) : {},
       relations: { createdBy: true, targetGroup: true },
       order: { publishedAt: 'DESC' },
     });
+    const ownGroupIds = await this.getUserGroupIds(currentUser);
+    return notices.filter((n) => this.canView(n, currentUser, ownGroupIds));
   }
 
-  findAllGlobal() {
-    return this.noticesRepo.find({
+  async findAllGlobal(currentUser: CurrentUser) {
+    const notices = await this.noticesRepo.find({
       where: { isGlobal: true },
       relations: { createdBy: true },
       order: { publishedAt: 'DESC' },
     });
+    const ownGroupIds = await this.getUserGroupIds(currentUser);
+    return notices.filter((n) => this.canView(n, currentUser, ownGroupIds));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, currentUser: CurrentUser) {
     const notice = await this.noticesRepo.findOne({
       where: { id },
       relations: { createdBy: true, targetGroup: true },
     });
     if (!notice) throw new NotFoundException('Aviso no encontrado.');
+    const ownGroupIds = await this.getUserGroupIds(currentUser);
+    if (!this.canView(notice, currentUser, ownGroupIds)) {
+      throw new ForbiddenException('No tienes permiso para ver este aviso.');
+    }
     return notice;
   }
 
@@ -70,7 +127,7 @@ export class NoticesService {
   }
 
   async update(id: string, dto: UpdateNoticeDto) {
-    const notice = await this.findOne(id);
+    const notice = await this.findOne(id, { id: '', role: 'admin' });
 
     if (dto.title !== undefined) notice.title = dto.title;
     if (dto.content !== undefined) notice.content = dto.content;
@@ -92,7 +149,7 @@ export class NoticesService {
   }
 
   async remove(id: string) {
-    const notice = await this.findOne(id);
+    const notice = await this.findOne(id, { id: '', role: 'admin' });
     await this.noticesRepo.remove(notice);
     return { message: 'Aviso eliminado.' };
   }

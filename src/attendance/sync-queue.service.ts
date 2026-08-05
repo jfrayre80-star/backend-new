@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SyncQueue } from './SyncQueue';
+import { AccessLogs } from './AccessLogs';
 import { CreateSyncQueueDto, UpdateSyncQueueDto } from './dto/sync-queue.dto';
 
 @Injectable()
@@ -9,6 +10,8 @@ export class SyncQueueService {
   constructor(
     @InjectRepository(SyncQueue)
     private readonly syncQueueRepo: Repository<SyncQueue>,
+    @InjectRepository(AccessLogs)
+    private readonly accessLogsRepository: Repository<AccessLogs>,
   ) {}
 
   findAll(status?: string) {
@@ -26,7 +29,16 @@ export class SyncQueueService {
     return item;
   }
 
-  create(dto: CreateSyncQueueDto) {
+  async create(dto: CreateSyncQueueDto) {
+    if (dto.payload && dto.payload['localId']) {
+      const existing = await this.syncQueueRepo
+        .createQueryBuilder('sq')
+        .where('sq.entity_type = :entityType', { entityType: dto.entityType })
+        .andWhere("sq.payload->>'localId' = :localId", { localId: dto.payload['localId'] })
+        .andWhere('sq.status IN (:...statuses)', { statuses: ['pending', 'processing'] })
+        .getOne();
+      if (existing) return existing;
+    }
     return this.syncQueueRepo.save(
       this.syncQueueRepo.create({
         entityType: dto.entityType,
@@ -62,6 +74,45 @@ export class SyncQueueService {
     return this.syncQueueRepo.save(item);
   }
 
+  async process(id: string) {
+    const item = await this.findOne(id);
+    if (item.status === 'completed') return item;
+
+    item.status = 'processing';
+    await this.syncQueueRepo.save(item);
+
+    try {
+      await this.dispatch(item.entityType, item.payload as any);
+      item.status = 'completed';
+      item.errorMessage = null;
+    } catch (error) {
+      item.status = 'failed';
+      item.errorMessage = error instanceof Error ? error.message : String(error);
+    }
+    item.processedAt = new Date();
+    return this.syncQueueRepo.save(item);
+  }
+
+  private async dispatch(entityType: string, payload: any): Promise<void> {
+    switch (entityType) {
+      case 'access_log':
+        await this.accessLogsRepository.save(
+          this.accessLogsRepository.create({
+            studentId: payload.studentId,
+            eventType: payload.eventType,
+            scannedAt: payload.scannedAt ? new Date(payload.scannedAt) : new Date(),
+            deviceTerminalId: payload.deviceTerminalId ?? 'manual',
+            isExitReturn: payload.isExitReturn ?? false,
+            isSynced: true,
+            syncedAt: new Date(),
+          }),
+        );
+        return;
+      default:
+        throw new Error(`No hay handler para el entityType: ${entityType}`);
+    }
+  }
+
   async retry(id: string) {
     const item = await this.findOne(id);
     if (item.status === 'completed') {
@@ -74,7 +125,8 @@ export class SyncQueueService {
     item.status = 'pending';
     item.errorMessage = null;
     item.processedAt = null;
-    return this.syncQueueRepo.save(item);
+    await this.syncQueueRepo.save(item);
+    return this.process(id);
   }
 
   async remove(id: string) {
