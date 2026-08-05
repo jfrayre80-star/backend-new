@@ -33,6 +33,7 @@ import { ComponentCriteriaModule } from './evaluation/component-criteria.module'
 import { ComponentScoresModule } from './evaluation/component-scores.module';
 import { CriterionScoresModule } from './evaluation/criterion-scores.module';
 import { CompanyTutorsModule } from './dual/company-tutors.module';
+import { DualMonthlySubjectsModule } from './dual/dual-monthly-subjects.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { CompanyTutorsModule } from './dual/company-tutors.module';
     ComponentScoresModule,
     CriterionScoresModule,
     CompanyTutorsModule,
+    DualMonthlySubjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
