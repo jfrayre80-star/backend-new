@@ -7,12 +7,18 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { ExtraordinaryEnrollmentsService } from './extraordinary-enrollments.service';
 import { CreateExtraordinaryEnrollmentDto } from './dto/create-extraordinary-enrollment.dto';
 import { UpdateExtraordinaryEnrollmentDto } from './dto/update-extraordinary-enrollment.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('extraordinary-enrollments')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class ExtraordinaryEnrollmentsController {
   constructor(
     private readonly enrollmentsService: ExtraordinaryEnrollmentsService,

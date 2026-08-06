@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { AcademicHistoryService } from './academic-history.service';
 import { CreateAcademicHistoryDto } from './dto/create-academic-history.dto';
 import { UpdateAcademicHistoryDto } from './dto/update-academic-history.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('academic-history')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class AcademicHistoryController {
   constructor(private readonly academicHistoryService: AcademicHistoryService) {}
 

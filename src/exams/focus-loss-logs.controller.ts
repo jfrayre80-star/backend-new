@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { FocusLossLogsService } from './focus-loss-logs.service';
 import { CreateFocusLossLogDto } from './dto/create-focus-loss-log.dto';
 import { UpdateFocusLossLogDto } from './dto/update-focus-loss-log.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('focus-loss-logs')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class FocusLossLogsController {
   constructor(private readonly focusLossService: FocusLossLogsService) {}
 

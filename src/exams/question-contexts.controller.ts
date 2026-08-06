@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { QuestionContextsService } from './question-contexts.service';
 import { CreateQuestionContextDto } from './dto/create-question-context.dto';
 import { UpdateQuestionContextDto } from './dto/update-question-context.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('question-contexts')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class QuestionContextsController {
   constructor(private readonly contextsService: QuestionContextsService) {}
 

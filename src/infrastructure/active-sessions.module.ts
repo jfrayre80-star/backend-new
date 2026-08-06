@@ -8,5 +8,6 @@ import { ActiveSessionsController } from './active-sessions.controller';
   imports: [TypeOrmModule.forFeature([ActiveSessions])],
   controllers: [ActiveSessionsController],
   providers: [ActiveSessionsService],
+  exports: [ActiveSessionsService],
 })
 export class ActiveSessionsModule {}

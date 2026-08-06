@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { SemesterGradesService } from './semester-grades.service';
 import { CreateSemesterGradeDto } from './dto/create-semester-grade.dto';
 import { UpdateSemesterGradeDto } from './dto/update-semester-grade.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('semester-grades')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class SemesterGradesController {
   constructor(private readonly semesterGradesService: SemesterGradesService) {}
 

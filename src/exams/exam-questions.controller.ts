@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { ExamQuestionsService } from './exam-questions.service';
 import { CreateExamQuestionDto } from './dto/create-exam-question.dto';
 import { UpdateExamQuestionDto } from './dto/update-exam-question.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('exam-questions')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class ExamQuestionsController {
   constructor(private readonly questionsService: ExamQuestionsService) {}
 

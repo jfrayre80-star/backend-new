@@ -35,6 +35,34 @@ export class ActiveSessionsService {
     }));
   }
 
+  async register(
+    userId: string,
+    deviceId: string,
+    tokenHash: string,
+    ipAddress: string | null,
+    userAgent: string | null,
+    expiresAt: Date,
+  ): Promise<ActiveSessions> {
+    let session = await this.sessionRepo.findOne({ where: { userId, deviceId } });
+    if (!session) {
+      session = this.sessionRepo.create({
+        userId,
+        deviceId,
+        tokenHash,
+        ipAddress,
+        userAgent,
+        expiresAt,
+      });
+    } else {
+      session.tokenHash = tokenHash;
+      session.ipAddress = ipAddress;
+      session.userAgent = userAgent;
+      session.expiresAt = expiresAt;
+      session.isActive = true;
+    }
+    return this.sessionRepo.save(session);
+  }
+
   async deactivate(id: string): Promise<ActiveSessions> {
     const session = await this.findOne(id);
     session.isActive = false;

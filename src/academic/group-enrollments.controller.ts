@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { GroupEnrollmentsService } from './group-enrollments.service';
 import { CreateGroupEnrollmentDto } from './dto/create-group-enrollment.dto';
 import { UpdateGroupEnrollmentDto } from './dto/update-group-enrollment.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('group-enrollments')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class GroupEnrollmentsController {
   constructor(private readonly enrollmentsService: GroupEnrollmentsService) {}
 
