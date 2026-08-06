@@ -34,10 +34,13 @@ import { ComponentScoresModule } from './evaluation/component-scores.module';
 import { CriterionScoresModule } from './evaluation/criterion-scores.module';
 import { CompanyTutorsModule } from './dual/company-tutors.module';
 import { DualMonthlySubjectsModule } from './dual/dual-monthly-subjects.module';
+import { DualEnrollmentsModule } from './dual/dual-enrollments.module';
+import { WeeklyLogsModule } from './dual/weekly-logs.module';
 import { SyncQueueModule } from './attendance/sync-queue.module';
 import { OfflineOperationsModule } from './attendance/offline-operations.module';
 import { NoticesModule } from './notifications/notices.module';
 import { AlertsModule } from './notifications/alerts.module';
+import { NotificationQueueModule } from './notifications/notification-queue.module';
 
 @Module({
   imports: [
@@ -83,10 +86,13 @@ import { AlertsModule } from './notifications/alerts.module';
     CriterionScoresModule,
     CompanyTutorsModule,
     DualMonthlySubjectsModule,
+    DualEnrollmentsModule,
+    WeeklyLogsModule,
     SyncQueueModule,
     OfflineOperationsModule,
     NoticesModule,
     AlertsModule,
+    NotificationQueueModule,
   ],
   controllers: [AppController],
   providers: [AppService],
