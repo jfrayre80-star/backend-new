@@ -51,6 +51,11 @@ export class SyncQueueController {
     return this.syncQueueService.markFailed(id, errorMessage);
   }
 
+  @Roles('admin')
+  @Patch(':id/process')
+  process(@Param('id', ParseUUIDPipe) id: string) {
+    return this.syncQueueService.process(id);
+  }
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Patch(':id/retry')

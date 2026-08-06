@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException, BadRequestException, ForbiddenException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { ILike, Repository, DataSource } from "typeorm";
+import { ILike, Repository, DataSource, In } from "typeorm";
 import { randomBytes } from "crypto";
 import { Schedules } from "../academic/Schedules";
 import { QrCodes } from "./QrCodes";
@@ -518,23 +518,63 @@ export class AttendanceService {
       return { groupId, totalStudents: 0, students: [] };
     }
 
-    const studentsWithRate = await Promise.all(
-      enrollments.map(async (e) => {
-        const student = e.student;
-        const metrics = await this.getStudentMetrics(student.id, { id: "", role: "teacher" }, scheduleId);
+    const studentIds = enrollments.map((e) => e.studentId);
+    const whereCondition: any = { studentId: In(studentIds) };
+    if (scheduleId) whereCondition.scheduleId = scheduleId;
 
-        return {
-          studentId: student.id,
-          enrollmentNumber: student.enrollmentNumber || "N/A",
-          fullName: student.user
-            ? `${student.user.firstName} ${student.user.lastName}`
-            : "Alumno",
-          attendancePercentage: metrics.attendancePercentage,
-          statusAlert: metrics.statusAlert,
-          summary: metrics.summary,
-        };
-      }),
-    );
+    const records = await this.attendanceRecordsRepository.find({
+      where: whereCondition,
+    });
+
+    const recordsByStudent = new Map<string, AttendanceRecords[]>();
+    records.forEach((r) => {
+      const list = recordsByStudent.get(r.studentId) ?? [];
+      list.push(r);
+      recordsByStudent.set(r.studentId, list);
+    });
+
+    const studentsWithRate = enrollments.map((e) => {
+      const student = e.student;
+      const studentRecords = recordsByStudent.get(student.id) ?? [];
+
+      let presentCount = 0;
+      let lateCount = 0;
+      let absentCount = 0;
+      let justifiedCount = 0;
+      studentRecords.forEach((r) => {
+        switch (r.status) {
+          case "present": presentCount++; break;
+          case "late": lateCount++; break;
+          case "absent": absentCount++; break;
+          case "justified_absence": justifiedCount++; break;
+        }
+      });
+
+      const totalClasses = studentRecords.length;
+      const effectiveClasses = totalClasses - justifiedCount;
+      const attendedClasses = presentCount + lateCount;
+      const attendancePercentage =
+        effectiveClasses > 0
+          ? Number(((attendedClasses / effectiveClasses) * 100).toFixed(2))
+          : 100;
+
+      return {
+        studentId: student.id,
+        enrollmentNumber: student.enrollmentNumber || "N/A",
+        fullName: student.user
+          ? `${student.user.firstName} ${student.user.lastName}`
+          : "Alumno",
+        attendancePercentage,
+        statusAlert: attendancePercentage < 80 ? "ALERTA_RIESGO_FALTAS" : "ASISTENCIA_REGULAR",
+        summary: {
+          totalClasses,
+          present: presentCount,
+          late: lateCount,
+          absent: absentCount,
+          justifiedAbsence: justifiedCount,
+        },
+      };
+    });
 
     return {
       groupId,
@@ -548,7 +588,8 @@ export class AttendanceService {
   async createJustification(dto: CreateJustificationDto) {
     const { studentId, registeredBy, justificationDate, reason, modules } = dto;
 
-    const [year, month, day] = justificationDate.split("-").map(Number);
+    const normalizedDate = justificationDate.slice(0, 10);
+    const [year, month, day] = normalizedDate.split("-").map(Number);
     const dateObj = new Date(year, month - 1, day);
     const jsDay = dateObj.getDay();
     const dayOfWeek = jsDay === 0 ? 7 : jsDay;
@@ -556,47 +597,29 @@ export class AttendanceService {
     let targetModules: number[] = [];
     let schedulesForDay: Schedules[] = [];
 
+    const enrollment = await this.groupEnrollmentRepo.findOne({
+      where: { studentId },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException("El estudiante no se encuentra inscrito en ningún grupo activo.");
+    }
+
+    schedulesForDay = await this.schedulesRepository.find({
+      where: {
+        groupId: enrollment.groupId,
+        dayOfWeek: dayOfWeek,
+        isActive: true,
+      },
+      order: { startTime: "ASC" },
+    });
+
     if (modules && modules.length > 0) {
       targetModules = Array.from(new Set(modules));
-
-      const enrollment = await this.groupEnrollmentRepo.findOne({
-        where: { studentId },
-      });
-
-      if (!enrollment) {
-        throw new NotFoundException("El estudiante no se encuentra inscrito en ningún grupo activo.");
-      }
-
-      schedulesForDay = await this.schedulesRepository.find({
-        where: {
-          groupId: enrollment.groupId,
-          dayOfWeek: dayOfWeek,
-          isActive: true,
-        },
-        order: { startTime: "ASC" },
-      });
     } else {
-      const enrollment = await this.groupEnrollmentRepo.findOne({
-        where: { studentId },
-      });
-
-      if (!enrollment) {
-        throw new NotFoundException("El estudiante no se encuentra inscrito en ningún grupo activo.");
-      }
-
-      schedulesForDay = await this.schedulesRepository.find({
-        where: {
-          groupId: enrollment.groupId,
-          dayOfWeek: dayOfWeek,
-          isActive: true,
-        },
-        order: { startTime: "ASC" },
-      });
-
       if (schedulesForDay.length === 0) {
         throw new NotFoundException("El alumno no tiene clases programadas para este día de la semana.");
       }
-
       targetModules = schedulesForDay.map((_, index) => index + 1);
     }
 
@@ -609,7 +632,7 @@ export class AttendanceService {
         return queryRunner.manager.create(Justifications, {
           studentId,
           reason,
-          justificationDate,
+          justificationDate: normalizedDate,
           moduleNumber: moduleNum,
           registeredBy: { id: registeredBy } as any,
           isActive: true,
@@ -620,16 +643,33 @@ export class AttendanceService {
 
       for (let i = 0; i < schedulesForDay.length; i++) {
         const moduleNum = i + 1;
-        if (targetModules.includes(moduleNum)) {
-          await queryRunner.manager.update(
-            AttendanceRecords,
-            {
-              studentId,
-              scheduleId: schedulesForDay[i].id,
-              recordedDate: justificationDate,
+        if (!targetModules.includes(moduleNum)) continue;
+
+        const existingRecord = await queryRunner.manager.findOne(AttendanceRecords, {
+          where: {
+            studentId,
+            scheduleId: schedulesForDay[i].id,
+            recordedDate: normalizedDate,
+          },
+        });
+
+        if (existingRecord) {
+          existingRecord.status = "justified_absence";
+          await queryRunner.manager.save(AttendanceRecords, existingRecord);
+        } else {
+          await queryRunner.manager.insert(AttendanceRecords, {
+            studentId,
+            scheduleId: schedulesForDay[i].id,
+            status: "justified_absence",
+            recordedDate: normalizedDate,
+            recordedById: registeredBy,
+            isOffline: false,
+            isAutoClosed: false,
+            auditTrail: {
+              reason,
+              justifiedAt: new Date().toISOString(),
             },
-            { status: "justified_absence" },
-          );
+          });
         }
       }
 
@@ -689,7 +729,25 @@ export class AttendanceService {
     return { message: "Justificante eliminado correctamente." };
   }
 
-  async findJustificationsByStudentId(studentId: string) {
+  async findJustificationsByStudentId(studentId: string, currentUser?: { id: string; role: string }) {
+    if (currentUser && currentUser.role === "student") {
+      const student = await this.studentsRepository.findOne({
+        where: { userId: currentUser.id },
+      });
+      if (!student || student.id !== studentId) {
+        throw new ForbiddenException("Solo puedes consultar tus propios justificantes.");
+      }
+    }
+    if (currentUser && currentUser.role === "parent") {
+      const parent = await this.parentsRepository.findOne({
+        where: { user: { id: currentUser.id } },
+      });
+      if (!parent) throw new ForbiddenException("Acceso denegado.");
+      const child = await this.studentsRepository.findOne({
+        where: { id: studentId, parentId: parent.id },
+      });
+      if (!child) throw new ForbiddenException("Este alumno no está vinculado a tu cuenta.");
+    }
     return this.justificationsRepository.find({
       where: { studentId, isActive: true },
       order: { justificationDate: "DESC" },

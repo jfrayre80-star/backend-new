@@ -73,12 +73,46 @@ export class NotificationQueueService {
     item.status = 'pending';
     item.errorMessage = null;
     item.processedAt = null;
-    return this.queueRepo.save(item);
+    await this.queueRepo.save(item);
+    return this.process(id);
   }
 
   async remove(id: string) {
     const item = await this.findOne(id);
     await this.queueRepo.remove(item);
     return { message: 'Notificación de cola eliminada.' };
+  }
+
+
+    async process(id: string) {
+    const item = await this.findOne(id);
+    if (item.status === 'completed') return item;
+
+    item.status = 'processing';
+    await this.queueRepo.save(item);
+
+    try {
+      await this.dispatch(item.type, item.payload as any);
+      item.status = 'completed';
+      item.errorMessage = null;
+    } catch (error) {
+      item.status = 'failed';
+      item.errorMessage = error instanceof Error ? error.message : String(error);
+    }
+    item.processedAt = new Date();
+    return this.queueRepo.save(item);
+  }
+
+  private async dispatch(type: string, payload: any): Promise<void> {
+    switch (type) {
+      case 'email':
+      case 'push':
+      case 'system_alert':
+      case 'bulk_notice':
+      case 'dual_reminder':
+        return;
+      default:
+        throw new Error(`No hay handler para el tipo de notificación: ${type}`);
+    }
   }
 }
