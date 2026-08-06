@@ -16,6 +16,7 @@ import { UpdateJustificationDto } from "./dto/update-justification.dto";
 import { GroupEnrollments } from "../academic/GroupEnrollments";
 import { Parents } from "../users/Parents";
 import { ManualAttendanceDto } from "./dto/manual-attendance.dto";
+import { NotificationQueueService } from "../notifications/notification-queue.service";
 
 const QR_EXPIRATION_TIME = 30 * 1000;
 const LATE_TOLERANCE_MINUTES = 10;
@@ -46,6 +47,8 @@ export class AttendanceService {
 
     @InjectRepository(Parents)
     private readonly parentsRepository: Repository<Parents>,
+
+    private readonly notificationQueueService: NotificationQueueService,
 
     private readonly dataSource: DataSource,
   ) {}
@@ -789,17 +792,103 @@ export class AttendanceService {
 
   // ─── ACCESS LOGS ───
 
+  /**
+   * RF-15 — Deduce el contexto del escaneo perimetral según el último evento
+   * registrado del alumno:
+   *  - Una "salida" requiere retorno (requiresReturn) solo si el alumno estaba
+   *    dentro (último evento = entrada).
+   *  - Un "ingreso" es un retorno (isExitReturn) solo si el último evento fue una
+   *    salida temporal pendiente.
+   */
+  private async resolveTransitContext(studentId: string, eventType: "entry" | "exit") {
+    const lastLog = await this.accessLogsRepository.findOne({
+      where: { studentId },
+      order: { scannedAt: "DESC" },
+    });
+
+    if (eventType === "exit") {
+      // Salida temporal: se marca que el alumno debe regresar.
+      return { isExitReturn: false, requiresReturn: lastLog?.eventType === "entry" };
+    }
+
+    // Ingreso: es un reingreso si había una salida temporal pendiente.
+    const isExitReturn = lastLog?.eventType === "exit" && lastLog.requiresReturn === true;
+    return { isExitReturn: !!isExitReturn, requiresReturn: false };
+  }
+
+  /**
+   * RF-15 — Cierra la salida temporal pendiente del alumno una vez que el
+   * reingreso fue registrado (trazabilidad salida → retorno).
+   */
+  private async clearPendingReturn(studentId: string) {
+    await this.accessLogsRepository.update(
+      { studentId, requiresReturn: true },
+      { requiresReturn: false },
+    );
+  }
+
+  /**
+   * RF-14 — Encola una notificación para el padre cuando el alumno registra una
+   * entrada o salida perimetral. La cola se procesa en segundo plano, por lo que
+   * esta tarea nunca debe romper el registro del acceso (se protege con try/catch).
+   */
+  private async notifyParentOfTransit(dto: CreateAccessLogDto) {
+    try {
+      const student = await this.studentsRepository.findOne({
+        where: { id: dto.studentId },
+        relations: { user: true, parent: true },
+      });
+      if (!student || !student.parent) {
+        // Sin padre vinculado no hay a quién notificar.
+        return;
+      }
+
+      const eventLabel = dto.eventType === "entry" ? "entrada" : "salida";
+      await this.notificationQueueService.create({
+        type: "push",
+        payload: {
+          toParentId: student.parent.id,
+          studentId: student.id,
+          studentName: student.user
+            ? `${student.user.firstName} ${student.user.lastName}`
+            : "Alumno",
+          eventType: dto.eventType,
+          eventLabel,
+          scannedAt: new Date(dto.scannedAt).toISOString(),
+          deviceTerminalId: dto.deviceTerminalId,
+          message: `Tu hijo(a) registró ${eventLabel} en el plantel.`,
+        },
+      });
+    } catch (error) {
+      // No bloqueamos el registro perimetral por un fallo de notificación.
+      console.error("Error al encolar notificación de tránsito:", error);
+    }
+  }
+
   async createAccessLog(dto: CreateAccessLogDto) {
+    // RF-15: se deduce automáticamente el contexto (salida temporal / reingreso).
+    const context = await this.resolveTransitContext(dto.studentId, dto.eventType);
+
     const log = this.accessLogsRepository.create({
       studentId: dto.studentId,
       eventType: dto.eventType,
       scannedAt: new Date(dto.scannedAt),
       deviceTerminalId: dto.deviceTerminalId,
-      isExitReturn: dto.isExitReturn,
+      isExitReturn: dto.isExitReturn ?? context.isExitReturn,
+      requiresReturn: context.requiresReturn,
       isSynced: true,
       syncedAt: new Date(),
     });
     await this.accessLogsRepository.save(log);
+
+    // Si este ingreso fue un retorno, se cierra la salida temporal pendiente.
+    if (log.isExitReturn) {
+      await this.clearPendingReturn(dto.studentId);
+    }
+
+    // RF-14: notificar al padre del tránsito registrado.
+    await this.notifyParentOfTransit(dto);
+
     return { message: "Registro de acceso guardado correctamente", log };
   }
 
@@ -826,16 +915,29 @@ export class AttendanceService {
   }
 
   async syncSingleAccessLog(dto: CreateAccessLogDto) {
+    // RF-15: se deduce automáticamente el contexto (salida temporal / reingreso).
+    const context = await this.resolveTransitContext(dto.studentId, dto.eventType);
+
     const log = this.accessLogsRepository.create({
       studentId: dto.studentId,
       eventType: dto.eventType,
       scannedAt: new Date(dto.scannedAt),
       deviceTerminalId: dto.deviceTerminalId,
-      isExitReturn: dto.isExitReturn ?? false,
+      isExitReturn: dto.isExitReturn ?? context.isExitReturn,
+      requiresReturn: context.requiresReturn,
       isSynced: true,
       syncedAt: new Date(),
     });
     await this.accessLogsRepository.save(log);
+
+    // Si este ingreso fue un retorno, se cierra la salida temporal pendiente.
+    if (log.isExitReturn) {
+      await this.clearPendingReturn(dto.studentId);
+    }
+
+    // RF-14: notificar al padre al sincronizar el tránsito.
+    await this.notifyParentOfTransit(dto);
+
     return {
       success: true,
       message: "Registro offline sincronizado exitosamente.",

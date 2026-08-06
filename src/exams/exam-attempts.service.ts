@@ -1,11 +1,16 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ExamAttempts } from './ExamAttempts';
 import { Exams } from './Exams';
 import { Students } from '../users/Students';
+import { Schedules } from '../academic/Schedules';
+import { AttendanceRecords } from '../attendance/AttendanceRecords';
 import { CreateExamAttemptDto, GradeExamAttemptDto } from './dto/create-exam-attempt.dto';
 import { UpdateExamAttemptDto } from './dto/update-exam-attempt.dto';
+
+// RF-25: porcentaje mínimo de asistencia para tener derecho a examen.
+const MIN_ATTENDANCE_PERCENTAGE = 60;
 
 @Injectable()
 export class ExamAttemptsService {
@@ -16,6 +21,10 @@ export class ExamAttemptsService {
     private readonly examsRepository: Repository<Exams>,
     @InjectRepository(Students)
     private readonly studentsRepository: Repository<Students>,
+    @InjectRepository(Schedules)
+    private readonly schedulesRepository: Repository<Schedules>,
+    @InjectRepository(AttendanceRecords)
+    private readonly attendanceRecordsRepository: Repository<AttendanceRecords>,
   ) {}
 
   async findAll() {
@@ -40,6 +49,10 @@ export class ExamAttemptsService {
 
     const student = await this.studentsRepository.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Estudiante no encontrado.');
+
+    // RF-25: validar que el alumno tenga al menos 60% de asistencia en la materia
+    // del examen antes de permitirle iniciar el intento.
+    await this.validateMinimumAttendance(exam, dto.studentId);
 
     // Verificar que no exceda el máximo de intentos
     const attemptNumber = dto.attemptNumber || 1;
@@ -110,5 +123,52 @@ export class ExamAttemptsService {
     const attempt = await this.findOne(id);
     await this.attemptsRepository.remove(attempt);
     return { message: 'Intento eliminado correctamente.' };
+  }
+
+  /**
+   * RF-25 — Filtro de restricción del derecho a examen.
+   * Calcula el porcentaje de asistencia del alumno en los horarios activos de la
+   * materia que evalúa el examen. Si es menor al 60% se rechaza el intento.
+   * Las faltas justificadas no cuentan como clases efectivas.
+   */
+  private async validateMinimumAttendance(exam: Exams, studentId: string) {
+    const schedules = await this.schedulesRepository.find({
+      where: { subjectId: exam.subjectId, isActive: true },
+    });
+
+    // Sin horarios registrados para la materia no hay contra qué validar,
+    // así que no se bloquea el derecho a examen.
+    if (schedules.length === 0) {
+      return;
+    }
+
+    const records = await this.attendanceRecordsRepository.find({
+      where: {
+        studentId,
+        scheduleId: In(schedules.map((s) => s.id)),
+      },
+    });
+
+    const total = records.length;
+    const justified = records.filter((r) => r.status === 'justified_absence').length;
+    const effective = total - justified;
+
+    // Sin historial de asistencias no hay evidencia para restringir.
+    if (effective === 0) {
+      return;
+    }
+
+    const attended = records.filter(
+      (r) => r.status === 'present' || r.status === 'late',
+    ).length;
+
+    const percentage = (attended / effective) * 100;
+
+    if (percentage < MIN_ATTENDANCE_PERCENTAGE) {
+      throw new ForbiddenException(
+        `El alumno no cumple el mínimo de ${MIN_ATTENDANCE_PERCENTAGE}% de asistencia ` +
+          `en la materia (tiene ${percentage.toFixed(2)}%).`,
+      );
+    }
   }
 }

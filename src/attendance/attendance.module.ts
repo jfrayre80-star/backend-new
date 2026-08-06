@@ -10,9 +10,11 @@ import {Justifications} from "./Justifications";
 import { AccessLogs } from './AccessLogs';
 import { GroupEnrollments } from '../academic/GroupEnrollments';
 import { Parents } from "../users/Parents";
+import { NotificationQueueModule } from "../notifications/notification-queue.module";
 
 @Module({
   imports: [
+    NotificationQueueModule,
     TypeOrmModule.forFeature([
       AttendanceRecords,
       QrCodes,

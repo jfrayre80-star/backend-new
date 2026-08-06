@@ -10,6 +10,8 @@ import { Groups } from '../academic/Groups';
 import { Subjects } from '../academic/Subjects';
 import { Teachers } from '../users/Teachers';
 import { Students } from '../users/Students';
+import { Schedules } from '../academic/Schedules';
+import { AttendanceRecords } from '../attendance/AttendanceRecords';
 import { Activities } from '../evaluation/Activities';
 import { EvaluationSchemes } from '../evaluation/EvaluationSchemes';
 import { ExamsService } from './exams.service';
@@ -38,6 +40,8 @@ import { QuestionContextsController } from './question-contexts.controller';
       Subjects,
       Teachers,
       Students,
+      Schedules,
+      AttendanceRecords,
       Activities,
       EvaluationSchemes,
     ]),
