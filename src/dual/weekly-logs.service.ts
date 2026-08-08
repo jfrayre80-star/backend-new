@@ -1,17 +1,23 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { IsNull, Repository } from "typeorm";
 
-import { WeeklyLogs } from './WeeklyLogs';
-import { Students } from '../users/Students';
-import { Subjects } from '../academic/Subjects';
+import { WeeklyLogs } from "./WeeklyLogs";
+import { Students } from "../users/Students";
+import { Subjects } from "../academic/Subjects";
 
-import { CreateWeeklyLogDto, GradeWeeklyLogDto } from './dto/create-weekly-log.dto';
-import { UpdateWeeklyLogDto } from './dto/update-weekly-log.dto';
+import { FormatsService } from "../formats/formats.service";
+
+import {
+  CreateWeeklyLogDto,
+  GradeWeeklyLogDto,
+} from "./dto/create-weekly-log.dto";
+import { UpdateWeeklyLogDto } from "./dto/update-weekly-log.dto";
 
 @Injectable()
 export class WeeklyLogsService {
@@ -24,6 +30,8 @@ export class WeeklyLogsService {
 
     @InjectRepository(Subjects)
     private readonly subjectsRepository: Repository<Subjects>,
+
+    private readonly formatsService: FormatsService,
   ) {}
 
   /**
@@ -34,7 +42,7 @@ export class WeeklyLogsService {
   async findAll() {
     return await this.weeklyLogsRepository.find({
       relations: { student: { user: true }, subject: true },
-      order: { year: 'DESC', weekNumber: 'DESC' },
+      order: { year: "DESC", weekNumber: "DESC" },
     });
   }
 
@@ -49,7 +57,7 @@ export class WeeklyLogsService {
     });
 
     if (!log) {
-      throw new NotFoundException('Bitácora semanal no encontrada.');
+      throw new NotFoundException("Bitácora semanal no encontrada.");
     }
 
     return log;
@@ -64,8 +72,45 @@ export class WeeklyLogsService {
     return await this.weeklyLogsRepository.find({
       where: { studentId, ...(subjectId ? { subjectId } : {}) },
       relations: { subject: true },
-      order: { year: 'DESC', weekNumber: 'DESC' },
+      order: { year: "DESC", weekNumber: "DESC" },
     });
+  }
+
+  /**
+   * Valida que el contenido (metadata) de una bitácora cumpla con el formato
+   * institucional por defecto de bitácoras semanales (RF-47).
+   *
+   * Si el sistema tiene un formato institucional activo, verifica que estén
+   * presentes las secciones obligatorias. Si no hay formato configurado, la
+   * validación se omite para no bloquear el flujo.
+   */
+  private async validateFormatMetadata(metadata?: object) {
+    if (!metadata || typeof metadata !== "object") {
+      return;
+    }
+
+    const format = await this.formatsService.findDefaultBitacora();
+    if (!format) {
+      return;
+    }
+
+    const missing = format.sections
+      .filter((section) => section.required)
+      .map((section) => section.key)
+      .filter((key) => {
+        const value = (metadata as Record<string, unknown>)[key];
+        return (
+          value === undefined ||
+          value === null ||
+          (typeof value === "string" && value.trim() === "")
+        );
+      });
+
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `La bitácora no cumple con el formato institucional. Faltan las secciones obligatorias: ${missing.join(", ")}.`,
+      );
+    }
   }
 
   /**
@@ -75,13 +120,14 @@ export class WeeklyLogsService {
    *  2) Que la materia exista (si se envía).
    *  3) Que no exista ya esa combinación alumno/materia/semana/año
    *     (la BD tiene un índice único compuesto para evitarlo).
+   *  4) Que el contenido cumpla con el formato institucional (RF-47).
    */
   async create(dto: CreateWeeklyLogDto) {
     const student = await this.studentsRepository.findOne({
       where: { id: dto.studentId },
     });
     if (!student) {
-      throw new NotFoundException('El alumno no existe.');
+      throw new NotFoundException("El alumno no existe.");
     }
 
     if (dto.subjectId) {
@@ -89,7 +135,7 @@ export class WeeklyLogsService {
         where: { id: dto.subjectId },
       });
       if (!subject) {
-        throw new NotFoundException('La materia no existe.');
+        throw new NotFoundException("La materia no existe.");
       }
     }
 
@@ -104,9 +150,11 @@ export class WeeklyLogsService {
 
     if (existing) {
       throw new ConflictException(
-        'Ya existe una bitácora para ese alumno, materia, semana y año.',
+        "Ya existe una bitácora para ese alumno, materia, semana y año.",
       );
     }
+
+    await this.validateFormatMetadata(dto.metadata);
 
     const log = this.weeklyLogsRepository.create({
       ...dto,
@@ -128,7 +176,7 @@ export class WeeklyLogsService {
         where: { id: dto.studentId },
       });
       if (!student) {
-        throw new NotFoundException('El alumno no existe.');
+        throw new NotFoundException("El alumno no existe.");
       }
     }
 
@@ -137,7 +185,7 @@ export class WeeklyLogsService {
         where: { id: dto.subjectId },
       });
       if (!subject) {
-        throw new NotFoundException('La materia no existe.');
+        throw new NotFoundException("La materia no existe.");
       }
     }
 
@@ -154,9 +202,11 @@ export class WeeklyLogsService {
 
     if (existing && existing.id !== id) {
       throw new ConflictException(
-        'Ya existe una bitácora para ese alumno, materia, semana y año.',
+        "Ya existe una bitácora para ese alumno, materia, semana y año.",
       );
     }
+
+    await this.validateFormatMetadata(log.metadata ?? undefined);
 
     return await this.weeklyLogsRepository.save(log);
   }
@@ -192,6 +242,6 @@ export class WeeklyLogsService {
   async remove(id: string) {
     const log = await this.findOne(id);
     await this.weeklyLogsRepository.remove(log);
-    return { message: 'Bitácora semanal eliminada.' };
+    return { message: "Bitácora semanal eliminada." };
   }
 }

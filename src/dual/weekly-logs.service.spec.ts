@@ -6,6 +6,7 @@ import { WeeklyLogsService } from "./weekly-logs.service";
 import { WeeklyLogs } from "./WeeklyLogs";
 import { Students } from "../users/Students";
 import { Subjects } from "../academic/Subjects";
+import { FormatsService } from "../formats/formats.service";
 import {
   CreateWeeklyLogDto,
   GradeWeeklyLogDto,
@@ -26,6 +27,9 @@ describe("WeeklyLogsService", () => {
   };
   const subjectsRepository = {
     findOne: jest.fn(),
+  };
+  const formatsService = {
+    findDefaultBitacora: jest.fn().mockResolvedValue(null),
   };
 
   const STUDENT_ID = "44444444-4444-4444-4444-444444444444";
@@ -81,6 +85,10 @@ describe("WeeklyLogsService", () => {
         {
           provide: getRepositoryToken(Subjects),
           useValue: subjectsRepository,
+        },
+        {
+          provide: FormatsService,
+          useValue: formatsService,
         },
       ],
     }).compile();
@@ -230,6 +238,55 @@ describe("WeeklyLogsService", () => {
           year: 2026,
         },
       });
+    });
+
+    it("debe rechazar la bitácora si no cumple el formato institucional (RF-47)", async () => {
+      formatsService.findDefaultBitacora.mockResolvedValue({
+        sections: [
+          { key: "actividades_realizadas", required: true },
+          { key: "aprendizajes", required: true },
+          { key: "dificultades", required: false },
+        ],
+      });
+
+      const dtoConMetadata: CreateWeeklyLogDto = {
+        ...dto,
+        metadata: {
+          actividades_realizadas: "Realicé prácticas de soldadura.",
+        },
+      };
+
+      studentsRepository.findOne.mockResolvedValue(mockStudent);
+      weeklyLogsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.create(dtoConMetadata)).rejects.toThrow(
+        "formato institucional",
+      );
+      expect(weeklyLogsRepository.save).not.toHaveBeenCalled();
+    });
+
+    it("debe aceptar la bitácora cuando cumple el formato institucional (RF-47)", async () => {
+      formatsService.findDefaultBitacora.mockResolvedValue({
+        sections: [
+          { key: "actividades_realizadas", required: true },
+          { key: "aprendizajes", required: true },
+        ],
+      });
+
+      const dtoConMetadata: CreateWeeklyLogDto = {
+        ...dto,
+        metadata: {
+          actividades_realizadas: "Realicé prácticas de soldadura.",
+          aprendizajes: "Aprendí a usar el equipo de protección.",
+        },
+      };
+
+      studentsRepository.findOne.mockResolvedValue(mockStudent);
+      weeklyLogsRepository.findOne.mockResolvedValue(null);
+      weeklyLogsRepository.create.mockReturnValue(mockLog);
+      weeklyLogsRepository.save.mockResolvedValue(mockLog);
+
+      await expect(service.create(dtoConMetadata)).resolves.toEqual(mockLog);
     });
   });
 

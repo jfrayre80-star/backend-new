@@ -45,6 +45,7 @@ import { NotificationQueueModule } from "./notifications/notification-queue.modu
 import { AutomationModule } from "./automation/automation.module";
 import { UploadsModule } from "./uploads/uploads.module";
 import { ImportsModule } from "./imports/imports.module";
+import { FormatsModule } from "./formats/formats.module";
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { ImportsModule } from "./imports/imports.module";
     AutomationModule,
     UploadsModule,
     ImportsModule,
+    FormatsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
