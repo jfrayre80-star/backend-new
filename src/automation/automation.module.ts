@@ -10,6 +10,7 @@ import { Submissions } from "../evaluation/Submissions";
 import { GroupEnrollments } from "../academic/GroupEnrollments";
 import { AttendanceRecords } from "../attendance/AttendanceRecords";
 import { Alerts } from "../notifications/Alerts";
+import { SystemConfig } from "../infrastructure/SystemConfig";
 
 import { NotificationQueueModule } from "../notifications/notification-queue.module";
 import { AlertsModule } from "../notifications/alerts.module";
@@ -42,6 +43,7 @@ import { AutomationController } from "./automation.controller";
       GroupEnrollments,
       AttendanceRecords,
       Alerts,
+      SystemConfig,
     ]),
     NotificationQueueModule,
     AlertsModule,

@@ -71,13 +71,14 @@ export class SchedulesService {
     const conflicts = await this.checkOverlap({
       teacherId: dto.teacherId,
       groupId: dto.groupId,
+      classroomId: dto.classroomId ?? undefined,
       dayOfWeek: dto.dayOfWeek,
       startTime: dto.startTime,
       endTime: dto.endTime,
     });
 
     if (conflicts.length > 0) {
-      throw new ConflictException(this.buildConflictMessage(conflicts, dto.teacherId, dto.groupId));
+      throw new ConflictException(this.buildConflictMessage(conflicts, dto.teacherId, dto.groupId, dto.classroomId ?? undefined));
     }
 
     const schedule = this.schedulesRepository.create({
@@ -150,6 +151,8 @@ export class SchedulesService {
         schedule.classroom = null;
         schedule.classroomId = null;
       }
+      // RF-12: el aula cambia, hay que revalidar solapamientos.
+      needsOverlapCheck = true;
     }
 
     if (dto.dayOfWeek !== undefined && dto.dayOfWeek !== schedule.dayOfWeek) {
@@ -179,6 +182,7 @@ export class SchedulesService {
       const conflicts = await this.checkOverlap({
         teacherId: newTeacherId,
         groupId: newGroupId,
+        classroomId: schedule.classroomId ?? undefined,
         dayOfWeek: schedule.dayOfWeek,
         startTime: schedule.startTime,
         endTime: schedule.endTime,
@@ -186,7 +190,7 @@ export class SchedulesService {
       });
 
       if (conflicts.length > 0) {
-        throw new ConflictException(this.buildConflictMessage(conflicts, newTeacherId, newGroupId));
+        throw new ConflictException(this.buildConflictMessage(conflicts, newTeacherId, newGroupId, schedule.classroomId ?? undefined));
       }
     }
 
@@ -200,7 +204,7 @@ export class SchedulesService {
   }
 
   async checkOverlap(dto: CheckOverlapDto): Promise<Schedules[]> {
-    const { teacherId, groupId, dayOfWeek, startTime, endTime, excludeId } = dto;
+    const { teacherId, groupId, classroomId, dayOfWeek, startTime, endTime, excludeId } = dto;
 
     const query = this.schedulesRepository
       .createQueryBuilder('s')
@@ -209,11 +213,20 @@ export class SchedulesService {
       .andWhere('(s.start_time, s.end_time) OVERLAPS (:startTime::time, :endTime::time)', {
         startTime,
         endTime,
-      })
-      .andWhere('(s.teacher_id = :teacherId OR s.group_id = :groupId)', {
+      });
+
+    // RF-12: además del profesor y el grupo, el aula es un recurso exclusivo.
+    // La condición del aula se integra en el mismo filtro de solapamiento.
+    query.andWhere(
+      '(s.teacher_id = :teacherId OR s.group_id = :groupId' +
+        (classroomId ? ' OR s.classroom_id = :classroomId' : '') +
+        ')',
+      {
         teacherId,
         groupId,
-      });
+        ...(classroomId ? { classroomId } : {}),
+      },
+    );
 
     if (excludeId) {
       query.andWhere('s.id != :excludeId', { excludeId });
@@ -222,7 +235,7 @@ export class SchedulesService {
     return query.getMany();
   }
 
-  private buildConflictMessage(conflicts: Schedules[], teacherId: string, groupId: string): string {
+  private buildConflictMessage(conflicts: Schedules[], teacherId: string, groupId: string, classroomId?: string): string {
     const messages: string[] = [];
     for (const c of conflicts) {
       if (c.teacherId === teacherId) {
@@ -230,6 +243,9 @@ export class SchedulesService {
       }
       if (c.groupId === groupId) {
         messages.push('El grupo ya tiene una materia asignada en ese día y horario.');
+      }
+      if (classroomId && c.classroomId === classroomId) {
+        messages.push('El aula ya está ocupada en ese día y horario.');
       }
     }
     return [...new Set(messages)].join(' ');

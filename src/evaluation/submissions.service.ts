@@ -7,13 +7,16 @@ import {
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { Submissions } from './Submissions';
+import { Activities } from './Activities';
 import { ActivityDeliveries } from './ActivityDeliveries';
 import { ActivityTeams } from './ActivityTeams';
 import { ActivityTeamMembers } from './ActivityTeamMembers';
 import { Students } from '../users/Students';
 import { Users } from '../users/Users';
+import { GroupEnrollments } from '../academic/GroupEnrollments';
 
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { UpdateSubmissionDto } from './dto/update-submission.dto';
@@ -24,6 +27,9 @@ export class SubmissionsService {
   constructor(
     @InjectRepository(Submissions)
     private readonly submissionsRepository: Repository<Submissions>,
+
+    @InjectRepository(Activities)
+    private readonly activitiesRepository: Repository<Activities>,
 
     @InjectRepository(ActivityDeliveries)
     private readonly activityDeliveriesRepository: Repository<ActivityDeliveries>,
@@ -39,6 +45,9 @@ export class SubmissionsService {
 
     @InjectRepository(Users)
     private readonly usersRepository: Repository<Users>,
+
+    @InjectRepository(GroupEnrollments)
+    private readonly groupEnrollmentsRepository: Repository<GroupEnrollments>,
   ) {}
 
   private async validateActivityDelivery(
@@ -416,5 +425,77 @@ export class SubmissionsService {
     return {
       message: 'Submission eliminada correctamente',
     };
+  }
+
+  /**
+   * RF-28 — Motor de Calificación por Omisión.
+   * Cuando una actividad vence (due_date en el pasado) y sigue activa, asigna
+   * automáticamente la calificación mínima (min_grade) a cada alumno del grupo
+   * que no realizó la entrega en la sub-entrega correspondiente, y cierra la
+   * actividad. El trigger de BD solo actualiza entregas existentes; este cron
+   * cubre también a los alumnos que nunca entregaron. Corre cada hora.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async applyDefaultGrades(): Promise<number> {
+    const expired = await this.activitiesRepository.find({
+      where: { status: 'active' },
+      relations: { activityDeliveries: true },
+    });
+
+    const now = new Date();
+    let assigned = 0;
+
+    for (const activity of expired) {
+      if (activity.dueDate.getTime() > now.getTime()) {
+        continue;
+      }
+
+      // Solo se aplica a actividades con sub-entregas.
+      if (activity.activityDeliveries.length === 0) {
+        activity.status = 'closed';
+        await this.activitiesRepository.save(activity);
+        continue;
+      }
+
+      // Alumnos inscritos al grupo de la actividad.
+      const enrollments = await this.groupEnrollmentsRepository.find({
+        where: { groupId: activity.groupId },
+      });
+      const studentIds = enrollments.map((e) => e.studentId);
+
+      const minGrade = activity.minGrade ?? '0';
+
+      for (const delivery of activity.activityDeliveries) {
+        const existing = await this.submissionsRepository.find({
+          where: { activityDeliveryId: delivery.id },
+        });
+        const deliveredStudentIds = new Set(existing.map((s) => s.studentId));
+
+        for (const studentId of studentIds) {
+          if (deliveredStudentIds.has(studentId)) {
+            continue;
+          }
+
+          const submission = this.submissionsRepository.create({
+            activityDeliveryId: delivery.id,
+            studentId,
+            submittedAt: activity.dueDate,
+            isLate: true,
+            grade: minGrade,
+            feedback:
+              'Evaluación automática: no se realizó la entrega en el plazo establecido',
+            gradedAt: now,
+            isAutoGraded: true,
+          });
+          await this.submissionsRepository.save(submission);
+          assigned++;
+        }
+      }
+
+      activity.status = 'closed';
+      await this.activitiesRepository.save(activity);
+    }
+
+    return assigned;
   }
 }

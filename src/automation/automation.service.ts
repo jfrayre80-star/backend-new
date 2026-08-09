@@ -12,6 +12,7 @@ import { Submissions } from "../evaluation/Submissions";
 import { GroupEnrollments } from "../academic/GroupEnrollments";
 import { AttendanceRecords } from "../attendance/AttendanceRecords";
 import { Alerts } from "../notifications/Alerts";
+import { SystemConfig } from "../infrastructure/SystemConfig";
 
 import { NotificationQueueService } from "../notifications/notification-queue.service";
 import { AlertsService } from "../notifications/alerts.service";
@@ -19,7 +20,9 @@ import { AlertsService } from "../notifications/alerts.service";
 /**
  * Constantes de configuración del motor de automatización.
  */
-const RISK_ATTENDANCE_PERCENTAGE = 80; // Umbral de asistencia para alertar riesgo de reprobar.
+// RF-50: umbral por defecto de ausencias (absent + late) para alertar riesgo de
+// reprobar por faltas. Se usa como fallback si system_config no lo define.
+const DEFAULT_CRITICAL_ABSENCE_PERCENT = 40;
 const ACTIVITY_REMINDER_HOURS = 48; // Recordar actividades que vencen dentro de estas horas.
 const REMINDER_DEDUPE_DAYS = 7; // No repetir el mismo recordatorio dentro de este periodo.
 
@@ -66,6 +69,9 @@ export class AutomationService {
     @InjectRepository(Alerts)
     private readonly alertsRepository: Repository<Alerts>,
 
+    @InjectRepository(SystemConfig)
+    private readonly systemConfigRepository: Repository<SystemConfig>,
+
     private readonly notificationQueueService: NotificationQueueService,
 
     private readonly alertsService: AlertsService,
@@ -100,6 +106,45 @@ export class AutomationService {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * RF-50: Lee el umbral crítico de ausencias desde system_config
+   * (`critical_absence_percent`). Si no está configurado, usa 40%.
+   */
+  private async getCriticalAbsencePercent(): Promise<number> {
+    const config = await this.systemConfigRepository.findOne({
+      where: { key: "critical_absence_percent" },
+    });
+    if (!config) return DEFAULT_CRITICAL_ABSENCE_PERCENT;
+    const parsed = Number(config.value);
+    return Number.isNaN(parsed) ? DEFAULT_CRITICAL_ABSENCE_PERCENT : parsed;
+  }
+
+  /**
+   * Calcula el porcentaje de ausencias (faltas + retardos) de un alumno
+   * respecto al total de registros. Las faltas justificadas no cuentan como
+   * ausencias reales. RF-50: el riesgo se evalúa por ausencias, no por
+   * asistencia.
+   */
+  private calculateAbsencePercentage(records: AttendanceRecords[]): number {
+    if (records.length === 0) return 0;
+
+    let absent = 0;
+    let late = 0;
+    let justified = 0;
+
+    for (const record of records) {
+      if (record.status === "absent") absent++;
+      else if (record.status === "late") late++;
+      else if (record.status === "justified_absence") justified++;
+    }
+
+    const effectiveClasses = records.length - justified;
+    if (effectiveClasses <= 0) return 0;
+
+    const absences = absent + late;
+    return Number(((absences / effectiveClasses) * 100).toFixed(2));
   }
 
   /**
@@ -279,11 +324,14 @@ export class AutomationService {
   // ─── RF-50: ALERTAS AUTOMÁTICAS DE ASISTENCIA ───
 
   /**
-   * Revisa el porcentaje de asistencia de todos los alumnos inscritos en
+   * Revisa el porcentaje de ausencias de todos los alumnos inscritos en
    * grupos y dispara una alerta automática a los que estén en riesgo de
-   * reprobar por faltas (por debajo del umbral de asistencia).
+   * reprobar por faltas (ausencias por encima del umbral crítico, por
+   * defecto 40%). RF-50.
    */
   async runAttendanceRiskAlerts(): Promise<{ studentsAlerted: number }> {
+    const criticalPercent = await this.getCriticalAbsencePercent();
+
     const enrollments = await this.groupEnrollmentsRepository.find({
       relations: {
         student: { user: true, parent: true, groupEnrollments: true },
@@ -302,9 +350,9 @@ export class AutomationService {
         where: { studentId: student.id },
       });
 
-      const percentage = this.calculateAttendancePercentage(records);
+      const absencePercentage = this.calculateAbsencePercentage(records);
 
-      if (percentage >= RISK_ATTENDANCE_PERCENTAGE) continue;
+      if (absencePercentage < criticalPercent) continue;
 
       const alreadyAlerted = await this.hasRecentAlert(
         student.id,
@@ -320,12 +368,12 @@ export class AutomationService {
         student,
         alertType: "risk_of_failure",
         title: "Riesgo de reprobar por faltas",
-        message: `Tu porcentaje de asistencia es del ${percentage}%. Mantente al pendiente para evitar reprobar la materia.`,
+        message: `Tu porcentaje de inasistencias es del ${absencePercentage}%. Mantente al pendiente para evitar reprobar la materia.`,
         payload: {
           studentId: student.id,
           studentName,
-          attendancePercentage: percentage,
-          threshold: RISK_ATTENDANCE_PERCENTAGE,
+          absencePercentage,
+          threshold: criticalPercent,
           reminderFor: "attendance_risk",
         },
       });
@@ -344,6 +392,8 @@ export class AutomationService {
    * inscrito en un grupo (o de todos los grupos si no se filtra).
    */
   async getRiskMonitor(groupId?: string) {
+    const criticalPercent = await this.getCriticalAbsencePercent();
+
     const where: { groupId?: string } = {};
     if (groupId) where.groupId = groupId;
 
@@ -358,6 +408,7 @@ export class AutomationService {
       fullName: string;
       groupId: string;
       attendancePercentage: number;
+      absencePercentage: number;
       isAtRisk: boolean;
       summary: {
         totalClasses: number;
@@ -391,6 +442,7 @@ export class AutomationService {
       }
 
       const percentage = this.calculateAttendancePercentage(records);
+      const absencePercentage = this.calculateAbsencePercentage(records);
 
       results.push({
         studentId: student.id,
@@ -399,7 +451,8 @@ export class AutomationService {
           : "Alumno",
         groupId: enrollment.groupId,
         attendancePercentage: percentage,
-        isAtRisk: percentage < RISK_ATTENDANCE_PERCENTAGE,
+        absencePercentage,
+        isAtRisk: absencePercentage >= criticalPercent,
         summary: {
           totalClasses: records.length,
           present,
@@ -410,14 +463,14 @@ export class AutomationService {
       });
     }
 
-    // Ordenar: primero los alumnos en riesgo (por menor asistencia).
+    // Ordenar: primero los alumnos en riesgo (por mayor porcentaje de ausencias).
     results.sort((a, b) => {
       if (a.isAtRisk !== b.isAtRisk) return a.isAtRisk ? -1 : 1;
-      return a.attendancePercentage - b.attendancePercentage;
+      return b.absencePercentage - a.absencePercentage;
     });
 
     return {
-      threshold: RISK_ATTENDANCE_PERCENTAGE,
+      threshold: criticalPercent,
       totalStudents: results.length,
       studentsAtRisk: results.filter((r) => r.isAtRisk).length,
       students: results,

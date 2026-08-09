@@ -22,6 +22,11 @@ export class CheckOverlapDto {
   @IsNotEmpty()
   endTime: string;
 
+  // RF-12: un aula no puede estar ocupada por dos grupos en el mismo horario.
+  @IsOptional()
+  @IsUUID()
+  classroomId?: string;
+
   @IsOptional()
   @IsUUID()
   excludeId?: string;

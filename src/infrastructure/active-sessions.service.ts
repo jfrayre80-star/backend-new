@@ -24,6 +24,23 @@ export class ActiveSessionsService {
     return this.sessionRepo.find({ where: { userId, isActive: true }, order: { createdAt: 'DESC' } });
   }
 
+  /**
+   * RNF-02: Busca la sesión de un usuario para un dispositivo concreto.
+   * Permite vincular el token (jti) a una sesión específica, no a cualquier
+   * sesión activa del usuario.
+   */
+  findByUserAndDevice(userId: string, deviceId: string): Promise<ActiveSessions | null> {
+    return this.sessionRepo.findOne({ where: { userId, deviceId } });
+  }
+
+  /**
+   * RNF-02: Devuelve una sesión por su id (sin lanzar excepción si no existe).
+   * Se usa desde JwtStrategy para validar el jti del token.
+   */
+  findById(id: string): Promise<ActiveSessions | null> {
+    return this.sessionRepo.findOne({ where: { id } });
+  }
+
   async create(dto: CreateActiveSessionDto): Promise<ActiveSessions> {
     return this.sessionRepo.save(this.sessionRepo.create({
       userId: dto.userId,
@@ -42,10 +59,12 @@ export class ActiveSessionsService {
     ipAddress: string | null,
     userAgent: string | null,
     expiresAt: Date,
+    id?: string,
   ): Promise<ActiveSessions> {
     let session = await this.sessionRepo.findOne({ where: { userId, deviceId } });
     if (!session) {
       session = this.sessionRepo.create({
+        id,
         userId,
         deviceId,
         tokenHash,
@@ -67,6 +86,16 @@ export class ActiveSessionsService {
     const session = await this.findOne(id);
     session.isActive = false;
     return this.sessionRepo.save(session);
+  }
+
+  /**
+   * RNF-02: Desactiva la sesión activa específica de un usuario para un dispositivo dado.
+   */
+  async deactivateByDevice(userId: string, deviceId: string): Promise<void> {
+    await this.sessionRepo.update(
+      { userId, deviceId, isActive: true },
+      { isActive: false },
+    );
   }
 
   async deactivateAllByUser(userId: string): Promise<void> {

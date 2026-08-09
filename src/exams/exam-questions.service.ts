@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExamQuestions } from './ExamQuestions';
@@ -6,6 +6,13 @@ import { Exams } from './Exams';
 import { QuestionContexts } from './QuestionContexts';
 import { CreateExamQuestionDto } from './dto/create-exam-question.dto';
 import { UpdateExamQuestionDto } from './dto/update-exam-question.dto';
+
+// RF-34: límite institucional de preguntas por examen según la categoría.
+const QUESTION_LIMITS: Record<Exams['examCategory'], number> = {
+  partial: 30,
+  semestral: 50,
+  extraordinary: 50,
+};
 
 @Injectable()
 export class ExamQuestionsService {
@@ -33,7 +40,7 @@ export class ExamQuestionsService {
     return question;
   }
 
-  // Crea una pregunta asociada a un examen
+  // Crea una pregunta asociada a un examen validando el límite por categoría (RF-34)
   async create(dto: CreateExamQuestionDto) {
     const exam = await this.examsRepository.findOne({ where: { id: dto.examId } });
     if (!exam) throw new NotFoundException('Examen no encontrado.');
@@ -41,6 +48,17 @@ export class ExamQuestionsService {
     if (dto.questionContextId) {
       const context = await this.contextsRepository.findOne({ where: { id: dto.questionContextId } });
       if (!context) throw new NotFoundException('Contexto de pregunta no encontrado.');
+    }
+
+    const currentCount = await this.questionsRepository.count({
+      where: { examId: dto.examId },
+    });
+    const maxQuestions = QUESTION_LIMITS[exam.examCategory] ?? 50;
+
+    if (currentCount >= maxQuestions) {
+      throw new BadRequestException(
+        `El examen no puede tener más de ${maxQuestions} preguntas.`,
+      );
     }
 
     const question = this.questionsRepository.create(dto);

@@ -1,16 +1,19 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { In, Repository } from 'typeorm';
 import { ExamAttempts } from './ExamAttempts';
 import { Exams } from './Exams';
 import { Students } from '../users/Students';
 import { Schedules } from '../academic/Schedules';
 import { AttendanceRecords } from '../attendance/AttendanceRecords';
+import { EvaluationSchemes } from '../evaluation/EvaluationSchemes';
 import { CreateExamAttemptDto, GradeExamAttemptDto } from './dto/create-exam-attempt.dto';
 import { UpdateExamAttemptDto } from './dto/update-exam-attempt.dto';
 
-// RF-25: porcentaje mínimo de asistencia para tener derecho a examen.
-const MIN_ATTENDANCE_PERCENTAGE = 60;
+// RF-25: umbral por defecto de asistencia mínima cuando el examen no tiene
+// esquema de evaluación asociado.
+const DEFAULT_MIN_ATTENDANCE_PERCENTAGE = 60;
 
 @Injectable()
 export class ExamAttemptsService {
@@ -25,6 +28,8 @@ export class ExamAttemptsService {
     private readonly schedulesRepository: Repository<Schedules>,
     @InjectRepository(AttendanceRecords)
     private readonly attendanceRecordsRepository: Repository<AttendanceRecords>,
+    @InjectRepository(EvaluationSchemes)
+    private readonly evaluationSchemesRepository: Repository<EvaluationSchemes>,
   ) {}
 
   async findAll() {
@@ -68,8 +73,44 @@ export class ExamAttemptsService {
       ...dto,
       attemptNumber,
       status: 'in_progress',
+      startedAt: new Date(),
     });
     return await this.attemptsRepository.save(attempt);
+  }
+
+  // RF-35: calcula la fecha/hora en la que expira el intento según el límite
+  // de tiempo configurado en el examen (time_limit_minutes).
+  getExpiresAt(attempt: ExamAttempts, exam: Exams): Date | null {
+    if (!attempt.startedAt) return null;
+    const minutes = exam.timeLimitMinutes || 0;
+    return new Date(attempt.startedAt.getTime() + minutes * 60_000);
+  }
+
+  // RF-36/37: verifica si el intento ya rebasó su límite de tiempo.
+  isExpired(attempt: ExamAttempts, exam: Exams): boolean {
+    const expiresAt = this.getExpiresAt(attempt, exam);
+    return !!expiresAt && expiresAt.getTime() <= Date.now();
+  }
+
+  // RF-38: cierre forzado de intentos que agotaron el tiempo o el límite de
+  // pérdidas de foco. Corre cada minuto.
+  @Cron(CronExpression.EVERY_MINUTE)
+  async closeExpiredAttempts(): Promise<number> {
+    const attempts = await this.attemptsRepository.find({
+      where: { status: 'in_progress' },
+      relations: { exam: true },
+    });
+
+    let closed = 0;
+    for (const attempt of attempts) {
+      if (this.isExpired(attempt, attempt.exam)) {
+        attempt.status = 'closed';
+        attempt.completedAt = new Date();
+        await this.attemptsRepository.save(attempt);
+        closed++;
+      }
+    }
+    return closed;
   }
 
   // Califica un intento (manual o automática)
@@ -103,9 +144,15 @@ export class ExamAttemptsService {
     const attempt = await this.findOne(id);
     const exam = await this.examsRepository.findOne({ where: { id: attempt.examId } });
 
+    // RF-40: la 3ª pérdida (maxFocusLosses) debe cerrar el intento, no la 4ª.
+    // Antes se usaba `>` y se cerraba recién al superar el límite.
+    if (attempt.status === 'closed' || attempt.status === 'graded') {
+      throw new BadRequestException('El intento ya está cerrado o calificado.');
+    }
+
     attempt.focusLossCount = (attempt.focusLossCount || 0) + 1;
 
-    if (exam && attempt.focusLossCount > (exam.maxFocusLosses || 3)) {
+    if (exam && attempt.focusLossCount >= (exam.maxFocusLosses || 3)) {
       attempt.status = 'closed';
       attempt.completedAt = new Date();
     }
@@ -128,7 +175,9 @@ export class ExamAttemptsService {
   /**
    * RF-25 — Filtro de restricción del derecho a examen.
    * Calcula el porcentaje de asistencia del alumno en los horarios activos de la
-   * materia que evalúa el examen. Si es menor al 60% se rechaza el intento.
+   * materia que evalúa el examen. Si es menor al umbral configurado en el
+   * esquema de evaluación (evaluation_schemes.attendance_minimum_percent) se
+   * rechaza el intento. Sin esquema se usa el 60% por defecto.
    * Las faltas justificadas no cuentan como clases efectivas.
    */
   private async validateMinimumAttendance(exam: Exams, studentId: string) {
@@ -158,15 +207,26 @@ export class ExamAttemptsService {
       return;
     }
 
+    // RF-25: el umbral se toma del esquema de evaluación si existe.
+    let minimumPercent = DEFAULT_MIN_ATTENDANCE_PERCENTAGE;
+    if (exam.evaluationSchemeId) {
+      const scheme = await this.evaluationSchemesRepository.findOne({
+        where: { id: exam.evaluationSchemeId },
+      });
+      if (scheme?.attendanceMinimumPercent) {
+        minimumPercent = parseFloat(scheme.attendanceMinimumPercent);
+      }
+    }
+
     const attended = records.filter(
       (r) => r.status === 'present' || r.status === 'late',
     ).length;
 
     const percentage = (attended / effective) * 100;
 
-    if (percentage < MIN_ATTENDANCE_PERCENTAGE) {
+    if (percentage < minimumPercent) {
       throw new ForbiddenException(
-        `El alumno no cumple el mínimo de ${MIN_ATTENDANCE_PERCENTAGE}% de asistencia ` +
+        `El alumno no cumple el mínimo de ${minimumPercent}% de asistencia ` +
           `en la materia (tiene ${percentage.toFixed(2)}%).`,
       );
     }

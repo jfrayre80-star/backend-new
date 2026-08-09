@@ -8,6 +8,7 @@ import { Exams } from './Exams';
 import { Students } from '../users/Students';
 import { Schedules } from '../academic/Schedules';
 import { AttendanceRecords } from '../attendance/AttendanceRecords';
+import { EvaluationSchemes } from '../evaluation/EvaluationSchemes';
 
 describe('ExamAttemptsService', () => {
   let service: ExamAttemptsService;
@@ -31,6 +32,9 @@ describe('ExamAttemptsService', () => {
   };
   const attendanceRecordsRepository = {
     find: jest.fn(),
+  };
+  const evaluationSchemesRepository = {
+    findOne: jest.fn(),
   };
 
   const mockExam: Exams = {
@@ -91,6 +95,7 @@ describe('ExamAttemptsService', () => {
         { provide: getRepositoryToken(Students), useValue: studentsRepository },
         { provide: getRepositoryToken(Schedules), useValue: schedulesRepository },
         { provide: getRepositoryToken(AttendanceRecords), useValue: attendanceRecordsRepository },
+        { provide: getRepositoryToken(EvaluationSchemes), useValue: evaluationSchemesRepository },
       ],
     }).compile();
 
@@ -170,6 +175,26 @@ describe('ExamAttemptsService', () => {
       examsRepository.findOne.mockResolvedValue(null);
 
       await expect(service.create(dto as any)).rejects.toThrow(NotFoundException);
+    });
+
+    it('debe usar el umbral del esquema de evaluación (RF-25)', async () => {
+      schedulesRepository.find.mockResolvedValue([mockSchedule]);
+      // 10 clases: 7 present + 3 absent → 70% de asistencia.
+      attendanceRecordsRepository.find.mockResolvedValue([
+        ...Array.from({ length: 7 }, () => createAttendanceRecord('present')),
+        ...Array.from({ length: 3 }, () => createAttendanceRecord('absent')),
+      ]);
+      // Esquema configurado con umbral 80% → 70% no alcanza y se rechaza.
+      evaluationSchemesRepository.findOne.mockResolvedValue({
+        id: '99999999-9999-9999-9999-999999999999',
+        attendanceMinimumPercent: '80',
+      });
+      examsRepository.findOne.mockResolvedValue({
+        ...mockExam,
+        evaluationSchemeId: '99999999-9999-9999-9999-999999999999',
+      });
+
+      await expect(service.create(dto as any)).rejects.toThrow(ForbiddenException);
     });
   });
 });

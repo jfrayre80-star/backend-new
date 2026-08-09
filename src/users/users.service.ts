@@ -96,6 +96,23 @@ export class UsersService {
     await this.usersRepo.save(user);
   }
 
+  /**
+   * RF-06: Cambio de contraseña del propio usuario. Requiere la contraseña
+   * actual para autorizar, la hashea y limpia el indicador de contraseña
+   * temporal (mustChangePassword).
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.findOneUser(userId);
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('La contraseña actual es incorrecta.');
+    if (newPassword === currentPassword) {
+      throw new BadRequestException('La nueva contraseña debe ser diferente a la actual.');
+    }
+    user.passwordHash = await this.hashPassword(newPassword);
+    user.mustChangePassword = false;
+    await this.usersRepo.save(user);
+  }
+
   // ─── Teachers ───
   findAllTeachers(): Promise<Teachers[]> {
     return this.teachersRepo.find({ relations: { user: true } });
