@@ -67,8 +67,60 @@ export class UsersService {
   }
 
   // ─── Users ───
-  findAllUsers(): Promise<Users[]> {
-    return this.usersRepo.find();
+  async findAllUsers(role?: string, isActive?: string): Promise<any[]> {
+    const qb = this.usersRepo
+      .createQueryBuilder('u')
+      .leftJoin('Teachers', 't', 't.user_id = u.id')
+      .leftJoin('Admins', 'a', 'a.user_id = u.id')
+      .leftJoin('Parents', 'p', 'p.user_id = u.id')
+      .leftJoin('Students', 's', 's.user_id = u.id')
+      .select([
+        'u.id AS id',
+        'u.email AS email',
+        'u.first_name AS "firstName"',
+        'u.last_name AS "lastName"',
+        'u.phone AS phone',
+        'u.role AS role',
+        'u.is_active AS "isActive"',
+        'u.created_at AS "createdAt"',
+        'u.last_login AS "lastLogin"',
+        'COALESCE(t.employee_code, a.employee_code) AS "employeeCode"',
+        't.specialization AS specialization',
+        'a.department AS department',
+        'p.phone_secondary AS "phoneSecondary"',
+        'p.occupation AS occupation',
+        's.enrollment_number AS "enrollmentNumber"',
+      ])
+      .orderBy('u.created_at', 'DESC');
+
+    if (role && role !== 'all') {
+      qb.andWhere('u.role = :role', { role });
+    }
+    if (isActive === 'true') {
+      qb.andWhere('u.is_active = true');
+    }
+    if (isActive === 'false') {
+      qb.andWhere('u.is_active = false');
+    }
+
+    const rows = await qb.getRawMany();
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      phone: r.phone,
+      role: r.role,
+      isActive: r.isActive,
+      createdAt: r.createdAt,
+      lastLogin: r.lastLogin,
+      employeeCode: r.employeeCode ?? null,
+      specialization: r.specialization ?? null,
+      department: r.department ?? null,
+      phoneSecondary: r.phoneSecondary ?? null,
+      occupation: r.occupation ?? null,
+      enrollmentNumber: r.enrollmentNumber ?? null,
+    }));
   }
 
   async findOneUser(id: string): Promise<Users> {
@@ -180,6 +232,12 @@ export class UsersService {
     await this.parentsRepo.remove(parent);
   }
 
+  private cleanOptionalString(str?: string | null): string | null {
+    if (!str) return null;
+    const trimmed = str.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
   // ─── Register compuestos (user + rol en 1) ───
 
   async registerAdmin(dto: RegisterAdminDto) {
@@ -187,10 +245,10 @@ export class UsersService {
     return this.dataSource.transaction(async (manager) => {
       const user = await manager.save(Users, manager.create(Users, {
         email: dto.email, passwordHash: await this.hashPassword(dto.password),
-        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'admin',
+        firstName: dto.firstName, lastName: dto.lastName, phone: this.cleanOptionalString(dto.phone), role: 'admin',
       }));
       const admin = await manager.save(Admins, manager.create(Admins, {
-        employeeCode: dto.employeeCode, department: dto.department, user: { id: user.id },
+        employeeCode: dto.employeeCode, department: this.cleanOptionalString(dto.department), user: { id: user.id },
       }));
       return { ...admin, user };
     });
@@ -201,10 +259,10 @@ export class UsersService {
     return this.dataSource.transaction(async (manager) => {
       const user = await manager.save(Users, manager.create(Users, {
         email: dto.email, passwordHash: await this.hashPassword(dto.password),
-        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'teacher',
+        firstName: dto.firstName, lastName: dto.lastName, phone: this.cleanOptionalString(dto.phone), role: 'teacher',
       }));
       const teacher = await manager.save(Teachers, manager.create(Teachers, {
-        employeeCode: dto.employeeCode, specialization: dto.specialization, user: { id: user.id },
+        employeeCode: dto.employeeCode, specialization: this.cleanOptionalString(dto.specialization), user: { id: user.id },
       }));
       return { ...teacher, user };
     });
@@ -215,11 +273,11 @@ export class UsersService {
     return this.dataSource.transaction(async (manager) => {
       const user = await manager.save(Users, manager.create(Users, {
         email: dto.email, passwordHash: await this.hashPassword(dto.password),
-        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'parent',
+        firstName: dto.firstName, lastName: dto.lastName, phone: this.cleanOptionalString(dto.phone), role: 'parent',
       }));
       const parent = await manager.save(Parents, manager.create(Parents, {
-        phoneSecondary: dto.phoneSecondary, emergencyContact: dto.emergencyContact,
-        occupation: dto.occupation, user: { id: user.id },
+        phoneSecondary: this.cleanOptionalString(dto.phoneSecondary), emergencyContact: this.cleanOptionalString(dto.emergencyContact),
+        occupation: this.cleanOptionalString(dto.occupation), user: { id: user.id },
       }));
       return { ...parent, user };
     });
@@ -249,21 +307,21 @@ export class UsersService {
         parentUser = await manager.save(Users, manager.create(Users, {
           email: dto.parentEmail, passwordHash: await this.hashPassword(dto.parentPassword!),
           firstName: dto.parentFirstName, lastName: dto.parentLastName,
-          phone: dto.parentPhone ?? null, role: 'parent',
+          phone: this.cleanOptionalString(dto.parentPhone), role: 'parent',
         }));
         parent = await manager.save(Parents, manager.create(Parents, {
-          phoneSecondary: dto.parentPhoneSecondary,
-          emergencyContact: dto.parentEmergencyContact,
-          occupation: dto.parentOccupation, user: { id: parentUser.id },
+          phoneSecondary: this.cleanOptionalString(dto.parentPhoneSecondary),
+          emergencyContact: this.cleanOptionalString(dto.parentEmergencyContact),
+          occupation: this.cleanOptionalString(dto.parentOccupation), user: { id: parentUser.id },
         }));
       }
       const user = await manager.save(Users, manager.create(Users, {
         email: dto.email, passwordHash: await this.hashPassword(dto.password),
-        firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone ?? null, role: 'student',
+        firstName: dto.firstName, lastName: dto.lastName, phone: this.cleanOptionalString(dto.phone), role: 'student',
       }));
       const student = await manager.save(Students, manager.create(Students, {
         userId: user.id, parentId: parent.id, enrollmentNumber: dto.enrollmentNumber,
-        birthDate: dto.birthDate, specialtyId: dto.specialtyId,
+        birthDate: this.cleanOptionalString(dto.birthDate), specialtyId: this.cleanOptionalString(dto.specialtyId),
       }));
       return { ...student, user, parent: { ...parent, user: parentUser } };
     });
